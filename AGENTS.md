@@ -40,3 +40,10 @@ Follow **[DEPLOY.md](DEPLOY.md)** step by step, and obey its section 0 rules. In
 - Keep the safety properties: loopback-only OneBot, private-chat allowlist, no native model tools (Claude API may use only explicitly enabled public web queries), approvals bound to content digests, no automatic resend after an uncertain delivery.
 - Use `node scripts/qa-server.js` (port 4892, synthetic data, cannot send) to look at UI changes, never the live server.
 - Keep each role's `system` text byte-identical from call to call (put per-call material in `data`): the Claude API caches everything before the quoted data, and any varying word in the instructions turns every call into a cache miss.
+
+## Publishing
+
+The checkout the bot runs from holds live data and owner-only files, so it is never pushed to the public repository. Publish from a separate clean clone of it instead:
+
+1. Commit the change here, then run `node scripts/publish.js <path to the public clone>`. It copies the tracked files (never `data/`, `workspace/`, `verification/` or `docs/presets/`), removes files deleted here, and scans the copy for the markers in `data/release-markers.txt` and for QQ numbers, group names and persona text from the live config. Any hit stops it; fix the source and run it again.
+2. In the clone: `npm ci`, `npm test`, commit with the owner's GitHub noreply address, push.
