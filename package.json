@@ -1,0 +1,7 @@
+{
+  "name": "qq-friend", "version": "0.3.2", "private": true, "type": "module",
+  "description": "Local QQ companion with supervised initiative and independent personas",
+  "engines": { "node": ">=24.0.0" },
+  "scripts": { "start": "node src/server.js", "test": "node --test --test-concurrency=1 test/*.test.js", "setup": "node scripts/setup.js", "doctor": "node scripts/doctor.js" },
+  "dependencies": { "ws": "8.22.0" }
+}

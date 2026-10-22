@@ -1,0 +1,7 @@
+{
+ "manifest_version":3,"name":"QQ群友 · Chrome 内容桥","version":"0.1.0",
+ "description":"把已打开的哔哩哔哩和 X 页面内容提交给本机群友控制台，推荐经过双审后发送。",
+ "permissions":["storage","tabs","scripting","alarms"],
+ "host_permissions":["https://www.bilibili.com/*","https://bilibili.com/*","https://t.bilibili.com/*","https://space.bilibili.com/*","https://x.com/*","https://www.x.com/*","https://twitter.com/*","http://127.0.0.1:4891/*"],
+ "background":{"service_worker":"background.js"},"action":{"default_popup":"popup.html"}
+}

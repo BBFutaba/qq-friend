@@ -1,0 +1,9 @@
+node_modules/
+.npm-cache/
+data/
+workspace/
+.venv/
+verification/
+*.log
+__pycache__/
+dist/

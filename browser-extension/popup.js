@@ -1,0 +1,3 @@
+const cfg=await chrome.storage.local.get(['token','enabled','lastResult']);document.querySelector('#token').value=cfg.token||'';document.querySelector('#enabled').checked=!!cfg.enabled;
+document.querySelector('#save').onclick=async()=>{await chrome.storage.local.set({token:document.querySelector('#token').value.trim(),enabled:document.querySelector('#enabled').checked});document.querySelector('#status').textContent='已保存';};
+document.querySelector('#collect').onclick=async()=>{document.querySelector('#status').textContent='正在读取页面…';try{const r=await chrome.runtime.sendMessage({action:'collect'});document.querySelector('#status').textContent=r.error||`已提交 ${r.count} 条内容，等待后台审核`; }catch(e){document.querySelector('#status').textContent=e.message;}};
