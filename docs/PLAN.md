@@ -3,7 +3,7 @@
 ## Agreed scope
 - One bot QQ account and one owner (approver) QQ, always on the private-chat allowlist; up to 20 groups. All are set per install in the dashboard or with scripts/configure.js; a fresh install has none and cannot start until they are set.
 - One account, three independent DeepSeek / Claude / GPT personas; prompts initially blank. Switching is dashboard-only.
-- Observer and memory worker: GPT 6.1 Sol medium; optional Claude Fable 5.1 medium. Auditor has a separate session and the same configurable choices.
+- Each background role independently selects a native Codex, Claude or DeepSeek model and effort. New installs default the observer to GPT 6.1 Sol low; existing role selections remain intact. DeepSeek is text-only, so its observer uses GPT 6.1 Sol low for visual perception. Auditor always has a separate session.
 - Active group participation automatically replies; new topics and recommendations require agent audit followed by owner's explicit private approval.
 - Debug mode routes replies to owner, never falls back to group, and keeps simulated replies and memory separate.
 - Group shared facts, persona-specific memories, private owner interests and debug records are separate. Dashboard supports member profiles, memory editing/auditing, provenance and revision history.
@@ -33,3 +33,9 @@
 - A venv is dependency isolation, not an OS sandbox. Arbitrary code remains disabled unless an OS isolation backend is verified. Fixed media handlers must not take shell commands from models.
 - Browser extension needs the user to load/pair it in the existing Chrome profile. It reads rendered content in authorized Bilibili/X tabs; it does not claim a complete account export.
 - Unknown delivery is never automatically retried. New topics expire and need a new approval after content/persona/config changes.
+
+- Claude additionally supports explicit per-role API transport (Anthropic Messages / OpenAI-compatible Chat Completions), separate model catalog, local secret storage and owner-editable prompt presets. Offline synthetic request previews never invoke models; final expanded text obeys the existing input budget. Native remains the default.
+
+- Explicitly enabled Claude API chat queries support web_search and web_read for reply/preview only; bounded tool loop, SSRF-safe public HTTPS fetch, cancellation and model-round accounting. Observer classifies public chat queries as eligible conversation. No arbitrary command/file/configuration or QQ-sending tools.
+
+- Tool calls now require independent per-batch tool_audit approval from the configured auditor. No fixed four-call ceiling; time/daily budgets remain. Tool history gets a separate bounded window with source-preserving compaction. Ordinary chat over-splitting is packed, then shortened once if needed; approved proactive content remains immutable.

@@ -69,7 +69,7 @@ node scripts/setup.js
 
 ## 4. 准备至少一个模型后端
 
-本应用直接使用电脑上已登录的模型客户端，**不使用 API Key**，环境变量里的 API Key 会被主动忽略。至少需要下面 A 或 B 中的一个。
+本地模式直接使用电脑上已登录的模型客户端，并忽略环境变量里的 API Key。也可在后台「Claude API」中填写专用 API 地址和密钥，再将所需 Claude 人格或后台角色切为 API；参见 [README 的 API 说明](README.md#claude-api-与提示词编排)。未选择 API 时，至少需要下面 A 或 B 中的一个。
 
 ### A. GPT：Codex CLI（推荐，默认的后台 agent 用它）
 
@@ -100,7 +100,7 @@ node scripts/setup.js
 
 ### C. DeepSeek（可选）
 
-只有 DeepSeek 人格需要它。安装 DeepSeek Harness 桌面版后重新运行 `node scripts/setup.js`；如果装在非默认位置，先设置 `$env:DEEPSEEK_HARNESS_CMD` 为 `dsh.cmd` 的完整路径。
+选择 DeepSeek 人格或后台 agent 时需要它。后台四个角色均可单独选择 DeepSeek；用它做观察员时，图片 / 视频预读仍需要 Codex 的 GPT 6.1 Sol / low。安装 DeepSeek Harness 桌面版后重新运行 `node scripts/setup.js`；如果装在非默认位置，先设置 `$env:DEEPSEEK_HARNESS_CMD` 为 `dsh.cmd` 的完整路径。
 
 ## 5. 填写连接、账号和群
 

@@ -11,7 +11,7 @@ import { MediaLibrary } from '../src/stickers.js';
 import { normalizeEvent } from '../src/onebot.js';
 const png=n=>Buffer.concat([Buffer.from('89504e470d0a1a0a','hex'),Buffer.from(`sticker-${n}`)]),PIXEL='data:image/png;base64,AAAA',CAT='一只橘猫捂脸';
 function setup(t,{debug=false,reply=()=>({text:'哈哈'})}={}){
- const dir=mkdtempSync(join(tmpdir(),'qq-friend-pipeline-')),s=fixtureStore(),c=s.config();c.paused=false;c.debug=debug;c.personas.gpt.prompt='一个可靠的群友';c.output={...c.output,delayMs:0};s.saveConfig(c);
+ const dir=mkdtempSync(join(tmpdir(),'qq-friend-pipeline-')),s=fixtureStore(),c=s.config();c.paused=false;c.debug=debug;c.personas.gpt.prompt='一个可靠的群友';c.output={...c.output,delayMs:0};c.wake={...c.wake,observerMinGapSeconds:0,stickerEvery:1};s.saveConfig(c);
  const lib=new MediaLibrary(s,dir),files=new Map(),downloads=[],decodes=[],calls=[];
  const media=new Media({action:async()=>{throw new Error('no bridge in tests');}},lib,{fetch:async url=>{downloads.push(url);return files.get(url);},decode:async(action,file)=>{decodes.push(file);return {images:[PIXEL],notes:[]};}});media.ready=()=>true;
  const p={stop(){},async call(role,group,spec,prompt,signal,images=[]){calls.push({role,prompt,images});return role==='perception'?{description:CAT}:role==='observer'?{decision:'respond',contextIds:[]}:reply(prompt);}};
@@ -48,9 +48,9 @@ test('unknown sticker codes are ignored, and an empty reply with no valid sticke
  let answer={text:'好',sticker:'s7'};const x=setup(t,{reply:()=>answer});sticker(x);const say=t=>x.s.create('message',{groupId:GROUP,userId:'10000009',name:'小明',text:t,media:[],at:Date.now(),direction:'in'});
  say('一');await x.round();assert.deepEqual(x.bot.sent.map(s=>s.text),['好']);assert.equal(x.bot.images.length,0);
  answer={text:'',sticker:'not-a-code'};say('二');await x.round();assert.equal(x.bot.sent.length,1);assert.equal(x.bot.images.length,0);assert.ok(x.s.list('log',l=>l.type==='error').some(l=>l.message.includes('回复内容为空')));});
-test('without a repertoire the reply format is unchanged; a debug sticker-only reply tells the owner which sticker',async t=>{
- const plain=setup(t);plain.s.create('message',{groupId:GROUP,userId:'10000009',name:'小明',text:'在吗',media:[],at:Date.now(),direction:'in'});await plain.round();assert.equal(plain.lastReply().prompt.data.stickers,undefined);assert.match(plain.lastReply().prompt.system,/只返回 \{"text":"最终回复"\}/);
- const x=setup(t,{debug:true,reply:()=>({text:'',sticker:'s1'})});sticker(x);x.s.create('message',{groupId:GROUP,userId:'10000009',name:'小明',text:'离谱',media:[],at:Date.now(),direction:'in'});await x.round();
+test('reply instructions are identical with or without a repertoire (prompt caching); a debug sticker-only reply tells the owner which sticker',async t=>{
+ const plain=setup(t);plain.s.create('message',{groupId:GROUP,userId:'10000009',name:'小明',text:'在吗',media:[],at:Date.now(),direction:'in'});await plain.round();assert.equal(plain.lastReply().prompt.data.stickers,undefined);const plainSystem=plain.lastReply().prompt.system;
+ const x=setup(t,{debug:true,reply:()=>({text:'',sticker:'s1'})});sticker(x);x.s.create('message',{groupId:GROUP,userId:'10000009',name:'小明',text:'离谱',media:[],at:Date.now(),direction:'in'});await x.round();assert.ok(x.lastReply().prompt.data.stickers);assert.equal(x.lastReply().prompt.system,plainSystem);
  assert.deepEqual(x.bot.sent.map(s=>[s.type,s.id]),[['private',OWNER]]);assert.match(x.bot.sent[0].text,/^\[调试 ·[^\n]*\]\n（发表情包「捂脸」）$/);assert.deepEqual(x.bot.images.map(s=>[s.type,s.id]),[['private',OWNER]]);});
 test('QQ sticker hints on image segments are kept for the library',()=>{
  const c={botId:BOT,privateAllowlist:[OWNER],groups:[{id:GROUP,enabled:true}]};

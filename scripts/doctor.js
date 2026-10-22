@@ -20,11 +20,14 @@ const catalog=async name=>{try{const models=await providers.catalog(name);return
 const codex=await catalog('codex'),claude=secrets.claudeSdk?await catalog('claude'):{ok:false,detail:'未找到 Claude Agent SDK'};
 add('codex',codex.ok,codex.detail,'安装 Codex CLI 并用 ChatGPT 账号登录（codex login），GPT 人格与默认后台 agent 需要它',false);
 add('claude',claude.ok,claude.detail,'安装并登录 Claude Code，再运行 npm install --prefix workspace/claude-sdk @anthropic-ai/claude-agent-sdk 和 node scripts/setup.js',false);
-const roleProviders=[...new Set(Object.values(c.roles).map(r=>c.roleModels[r].provider))];
-add('background-models',roleProviders.every(p=>({codex,claude})[p]?.ok),`后台 agent 使用 ${roleProviders.join(' + ')}`,codex.ok||claude.ok?'到「人格与模型 → 后台 agent」把四个角色切换到已可用的后端并保存':'至少需要 Codex（ChatGPT 登录）或 Claude Agent SDK 之一');
-const enabled=c.groups.filter(g=>g.enabled),personaReady=g=>{const p=c.personas[g.persona];return !!p.prompt.trim()&&(p.provider!=='claude'||claude.ok)&&(p.provider!=='codex'||codex.ok)&&(p.provider!=='deepseek'||!!secrets.deepseekCommand);};
+const deepseek=secrets.deepseekCommand?await catalog('deepseek'):{ok:false,detail:'未找到 DeepSeek Harness'};
+const claudeApi=secrets.claudeApi?.apiKey?{ok:true,detail:'已配置 API；未执行真实推理'}:{ok:false,detail:'未配置 Claude API'};
+const providerKey=p=>p.provider==='claude'&&p.transport==='api'?'claudeApi':p.provider;
+const roleProviders=[...new Set([...Object.values(c.roles).map(r=>providerKey(c.roleModels[r])),...(c.roleModels[c.roles.observer].provider==='deepseek'&&(c.media.images||c.media.video)?['codex']:[])])];
+add('background-models',roleProviders.every(p=>({codex,claude,deepseek,claudeApi})[p]?.ok),`后台 agent 使用 ${roleProviders.join(' + ')}`,codex.ok||claude.ok||deepseek.ok?'到「人格与模型 → 后台 agent」把四个角色切换到已可用的后端并保存':'安装并登录所选的 Codex、Claude 或 DeepSeek 客户端；DeepSeek 观察员的图片预读需要 Codex');
+const enabled=c.groups.filter(g=>g.enabled),personaReady=g=>{const p=c.personas[g.persona];return !!p.prompt.trim()&&(p.provider!=='claude'||(p.transport==='api'?claudeApi:claude).ok)&&(p.provider!=='codex'||codex.ok)&&(p.provider!=='deepseek'||deepseek.ok);};
 add('personas',enabled.length>0&&enabled.every(personaReady),enabled.map(g=>`${g.name}→${c.personas[g.persona].name}${c.personas[g.persona].prompt.trim()?'':'（设定为空）'}`).join('；')||'没有启用的群','到「人格与模型」为启用群使用的人格填写设定，并确认该人格的后端可用');
-add('deepseek',!!secrets.deepseekCommand,secrets.deepseekCommand?'已找到 DeepSeek Harness':'未安装（只有 DeepSeek 人格需要）','安装 DeepSeek Harness 或设置 DEEPSEEK_HARNESS_CMD 后运行 node scripts/setup.js',false);
+add('deepseek',deepseek.ok,deepseek.detail,'安装 DeepSeek Harness 或设置 DEEPSEEK_HARNESS_CMD 后运行 node scripts/setup.js',false);
 add('media',mediaReady(),mediaReady()?'图片 / 语音 / 视频解码已就绪':'未安装（不影响文字聊天）','node scripts/setup.js --media',false);
 const health=await fetch(`http://127.0.0.1:${process.env.PORT||4891}/healthz`,{signal:AbortSignal.timeout(1500)}).then(r=>r.json()).catch(()=>null);
 const report={at:new Date().toISOString(),passed:checks.every(x=>x.ok||!x.required),server:health?`运行中 v${health.version}`:'未运行',paused:c.paused,debug:c.debug,checks,notes:['模型目录只证明客户端提供该选项，成功推理才证明账户当前可用：可运行 node scripts/probe-models.js。','本检查未向 QQ 发送任何消息。']};

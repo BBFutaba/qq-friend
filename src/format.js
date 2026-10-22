@@ -18,3 +18,6 @@ function jsonObjects(text){const found=[];for(let start=text.indexOf('{');start>
 export function parseJson(text){const raw=String(text??'').trim();
  for(const candidate of [raw.replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,''),...jsonObjects(raw)]){let value;try{value=JSON.parse(candidate);}catch{continue;}if(value&&typeof value==='object'&&!Array.isArray(value))return value;}
  throw new Error(`模型没有按要求返回 JSON 对象：${raw.replace(/\s+/g,' ').slice(0,80)||'（空回复）'}`);}
+
+// Chat punctuation is a preferred boundary, not a reason to discard an otherwise deliverable answer.
+export function splitChatReply(raw,o){try{return splitReply(raw,o);}catch(error){if(!/回复拆分后超过/.test(error.message))throw error;const pieces=splitReply(raw,{...o,maxParts:10000}),packed=[];let part='';for(const piece of pieces){if(part&&part.length+1+piece.length>o.maxPartChars){packed.push(part);part='';}part+=(part?' ':'')+piece;}if(part)packed.push(part);if(packed.length>o.maxParts)throw error;return packed;}}

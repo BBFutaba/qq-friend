@@ -1,3 +1,4 @@
 # Developer-only files left out of release archives built with `git archive` (see scripts/release.js).
 scripts/release.js export-ignore
 .gitattributes export-ignore
+scripts/publish.js export-ignore

@@ -1,4 +1,8 @@
 // Selection rules shared by all persona and background-agent dropdowns.
+export const backgroundRoles = {observer:'观察群聊',memory:'记忆整理',auditor:'主动话题审核',discovery:'发现新话题'};
+export const providerNames = {codex:'GPT / Codex',claude:'Claude',deepseek:'DeepSeek'};
+export function backgroundSpecs(config){return Object.fromEntries(Object.keys(backgroundRoles).map(role=>[role,{...config.roleModels[config.roles[role]]}]));}
+export function saveBackgroundSpecs(config,specs){for(const role of Object.keys(backgroundRoles)){const {provider,model,effort,transport,apiPreset}=specs[role],key=`role:${role}`;config.roles[role]=key;config.roleModels[key]={provider,model,effort,...(provider==='claude'?{transport:transport||'native',apiPreset:apiPreset||'default'}:{})};}return config;}
 export function modelOptions(catalog, currentModel, currentEffort) {
   if (!catalog) return {
     models: [{ id: currentModel, name: `${currentModel || '本地默认模型'}（待检测）` }],

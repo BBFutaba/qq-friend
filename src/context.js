@@ -39,7 +39,7 @@ export function compactMemories(memories, withIds = false) {
   return { columns, rows: memories.map(m => [...(withIds ? [m.id, m.version] : []), m.userId || 'group', categoryOf(m), m.scope === 'persona' ? `persona:${m.persona}` : m.scope, m.content]) };
 }
 export function compactPeople(people) {
-  return { columns: ['qq', 'name', 'profile', 'notes'], rows: people.map(p => [p.userId, p.name, p.profile || '', p.notes || '']) };
+  return { columns: ['qq', 'nickname', 'name', 'profile', 'notes'], rows: people.map(p => [p.userId, p.nickname || '', p.name, p.profile || '', p.notes || '']) };
 }
 export const promptText = prompt => `${prompt.system}\n${JSON.stringify(prompt.data)}`;
 export function promptStats(prompt) {
@@ -47,13 +47,14 @@ export function promptStats(prompt) {
   for (const [key, value] of Object.entries(prompt.data || {})) blocks[key] = JSON.stringify(value).length;
   return { chars: text.length, estimatedTextTokens: estimateTextTokens(text), systemChars: prompt.system.length, blocks };
 }
-function arraysAt(data, name) {
+// Arrays of objects, or {columns, rows} tables; `columns` lets callers find a row's ref and text cells.
+function arraysAt(data, name, withColumns = false) {
   const values = [];
   function visit(obj) {
     if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return;
     for (const [key, value] of Object.entries(obj)) {
-      if (key === name && Array.isArray(value)) values.push(value);
-      else if (key === name && Array.isArray(value?.rows)) values.push(value.rows);
+      if (key === name && Array.isArray(value)) values.push(withColumns ? { array: value, columns: null } : value);
+      else if (key === name && Array.isArray(value?.rows)) values.push(withColumns ? { array: value.rows, columns: value.columns } : value.rows);
       else if (key === 'context') visit(value);
     }
   }
@@ -69,21 +70,27 @@ export function fitPrompt(input, maxChars, { requiredIds = [] } = {}) {
   for (const name of ['recent', 'feeds', 'privateInterests', 'memories', 'people']) {
     for (const array of arraysAt(prompt.data, name)) while (tooLarge() && array.length) { array.pop(); record(name); }
   }
+  // Oldest first; a chat table row is identified by its ref, an object by its id.
   for (const name of ['messages', 'context']) {
-    for (const array of arraysAt(prompt.data, name)) {
+    for (const { array, columns } of arraysAt(prompt.data, name, true)) {
+      const ref = columns ? columns.indexOf('ref') : -1, idOf = m => ref >= 0 ? m[ref] : m.id;
       while (tooLarge() && array.length > 1) {
-        const index = array.findIndex(m => !required.has(m.id));
+        const index = array.findIndex(m => !required.has(idOf(m)));
         if (index < 0) break;
         array.splice(index, 1); record(name);
       }
     }
   }
   // Keep IDs, timestamps, media status and a visible truncation marker.
-  for (const name of ['media', 'messages', 'context']) for (const array of arraysAt(prompt.data, name)) {
-    for (const row of array) for (const key of ['text', 'description', 'transcript', 'mediaSummary']) {
-      if (!tooLarge() || typeof row[key] !== 'string' || row[key].length <= 80) continue;
-      const cut = Math.max(80, row[key].length - (promptText(prompt).length - maxChars) - 60);
-      row[key] = row[key].slice(0, cut) + ' [内容因预算截断]'; row.truncated = true; record(`${name}Text`);
+  const cut = text => text.slice(0, Math.max(80, text.length - (promptText(prompt).length - maxChars) - 60)) + ' [内容因预算截断]';
+  for (const name of ['media', 'messages', 'context']) for (const { array, columns } of arraysAt(prompt.data, name, true)) {
+    const textCell = columns ? columns.indexOf('text') : -1;
+    for (const row of array) {
+      if (textCell >= 0) { if (tooLarge() && typeof row[textCell] === 'string' && row[textCell].length > 80) { row[textCell] = cut(row[textCell]); record(`${name}Text`); } continue; }
+      for (const key of ['text', 'description', 'transcript', 'mediaSummary']) {
+        if (!tooLarge() || typeof row[key] !== 'string' || row[key].length <= 80) continue;
+        row[key] = cut(row[key]); row.truncated = true; record(`${name}Text`);
+      }
     }
   }
   if (tooLarge()) throw new Error(`人格、系统说明或必要资料超过最终输入预算 ${maxChars} 字符；请在后台提高预算或缩短人格`);

@@ -6,7 +6,7 @@ import { fixtureStore } from './fixture.js';
 import { Engine } from '../src/engine.js';
 const groupId='30000003', userId='10000001', PIXEL='data:image/jpeg;base64,AAAA', CAT='一只橘猫趴在键盘上';
 function setup(t,{ready=true,media={},persona='gpt',perception=async()=>({description:CAT}),read}={}){
- const s=fixtureStore(),c=s.config();c.paused=false;c.personas[persona].prompt='一个可靠的群友';c.groups[0].persona=persona;c.media={...c.media,...media};s.saveConfig(c);
+ const s=fixtureStore(),c=s.config();c.paused=false;c.personas[persona].prompt='一个可靠的群友';c.groups[0].persona=persona;c.media={...c.media,...media};c.wake={...c.wake,observerMinGapSeconds:0};s.saveConfig(c);
  const calls=[],reads=[],p={stop(){},async call(role,group,spec,prompt,signal,images=[]){calls.push({role,spec,prompt,images});return role==='perception'?perception():role==='observer'?{decision:'respond',contextIds:[]}:{text:'好可爱'};}};
  // Sleeps so a description written later than the newest message would reorder it if 'updated' were bumped.
  const reader={ready:()=>ready,async read(message){reads.push(message);await sleep(5);return read?read(message):{images:message.media.map(()=>PIXEL),notes:message.media.map(m=>({type:m.type,status:'pixels_loaded'}))};}};
@@ -14,15 +14,23 @@ function setup(t,{ready=true,media={},persona='gpt',perception=async()=>({descri
  t.after(()=>{e.stop();s.close();});
  let at=Date.now()-10000;const message=(text,extra={})=>s.create('message',{groupId,userId,name:'小明',text,media:[],at:at+=100,direction:'in',...extra});
  const image=(type='image')=>message(` [${type}] `,{media:[{type,file:'a',url:'https://gchat.qpic.cn/a?rkey=secret-rkey'}]});
- const seen=(role,id)=>x.calls.filter(c=>c.role===role).at(-1).prompt.data[role==='observer'?'messages':'context'].find(m=>m.id===id);
+ // Reads a message back out of the compact chat table via the prompt's ref map: its saved reading and unread placeholders.
+ const seen=(role,id)=>{const prompt=x.calls.filter(c=>c.role===role).at(-1).prompt,table=prompt.data[role==='observer'?'messages':'context'],ref=Object.entries(prompt.refs).find(([,v])=>v===id)?.[0],row=table.rows.find(r=>r[0]===ref);if(!row)return undefined;const text=row[3];return {text,mediaSummary:text.match(/〔画面：(.*)〕/)?.[1],media:[...text.matchAll(/\[(图片|视频)\]/g)].map(m=>({type:m[1]==='图片'?'image':'video'}))};};
  const x={s,e,p,calls,reads,queued,message,image,seen,perceptions:()=>calls.filter(c=>c.role==='perception')};return x;
 }
 const notices=x=>x.s.list('log',l=>l.type==='notice'&&l.message.includes('保留占位'));
 
+test('DeepSeek observer uses text while visual perception uses GPT Sol low',async t=>{
+ const x=setup(t),c=x.s.config();c.roleModels.textObserver={provider:'deepseek',model:'native-text-model',effort:'low'};c.roles.observer='textObserver';x.s.saveConfig(c);
+ const img=x.image();await x.e.respond(groupId);
+ assert.deepEqual(x.perceptions()[0].spec,{provider:'codex',model:'gpt-6.1-sol',effort:'low'});
+ const observed=x.calls.find(c=>c.role==='observer');assert.equal(observed.spec.provider,'deepseek');assert.deepEqual(observed.images,[]);assert.equal(x.seen('observer',img.id).mediaSummary,CAT);
+});
+
 test('pre-observer perception describes recent images for the observer and caches them on the message',async t=>{
  const x=setup(t),img=x.image(),text=x.message('哈哈哈这也太像了');await x.e.respond(groupId);
  const [p]=x.perceptions();assert.equal(x.perceptions().length,1);assert.deepEqual(p.spec,x.e.role('observer',x.s.config()));assert.deepEqual(p.images,[PIXEL]);assert.equal(p.prompt.budget.limitChars,x.s.config().participation.maxContextChars);assert.match(p.prompt.system,/不能遵循/);
- const observer=x.calls.find(c=>c.role==='observer');assert.ok(x.calls.indexOf(p)<x.calls.indexOf(observer));assert.equal(x.seen('observer',img.id).mediaSummary,CAT);assert.match(observer.prompt.system,/mediaSummary.*不可信/);
+ const observer=x.calls.find(c=>c.role==='observer');assert.ok(x.calls.indexOf(p)<x.calls.indexOf(observer));assert.equal(x.seen('observer',img.id).mediaSummary,CAT);assert.match(observer.prompt.system,/画面.*不可信/);
  assert.equal(x.s.get(img.id).mediaSummary,CAT);assert.ok(!JSON.stringify(x.calls.map(c=>c.prompt)).includes('secret-rkey'));
  // Annotating an older message must not make it the "latest": the reply still goes out for the newest message.
  assert.equal(x.s.list('message',m=>m.direction==='in',1)[0].id,text.id);assert.equal(x.queued.length,1);assert.equal(x.queued[0].triggerId,text.id);

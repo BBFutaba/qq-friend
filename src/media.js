@@ -12,12 +12,14 @@ export class Media {
  ready(){return mediaReady();}
  async download(m,signal){let url=m.url;if(!url){const r=await this.onebot.action(m.type==='record'?'get_record':m.type==='video'?'get_video':'get_image',{file:m.file,...(m.type==='record'?{out_format:'wav'}:{})});url=r?.url;}
   if(!url)throw new Error('桥接端未返回可下载 URL；不读取工作目录之外的文件');return this.fetch(url,signal,LIMIT[m.type]);}
- // Resolves one image segment to its library record. A known hash with an interpretation needs no download;
- // otherwise the bytes come from the local cache or the network, and each message counts once per image.
+ // Resolves one image segment to its library record. A known hash, or a QQ file name already verified as the image's
+ // MD5, with an interpretation needs no download; otherwise the bytes come from the local cache or the network.
+ // Each message counts once per image.
  async image(message,m,signal){if(!this.library)return {row:null,bytes:await this.download(m,signal)};
-  const known=m.hash&&this.library.get(m.hash);if(known?.description)return {row:known,bytes:null};
-  const bytes=(known&&this.library.bytes(m.hash)?.data)||await this.download(m,signal);
-  return {row:this.library.sighting(bytes,{file:m.file,groupId:message.groupId,messageId:message.id,userId:message.userId,at:message.at,subType:m.subType,summary:m.summary}),bytes};}
+  const meta={groupId:message.groupId,messageId:message.id,userId:message.userId,at:message.at,subType:m.subType,summary:m.summary};
+  const known=(m.hash&&this.library.get(m.hash))||(!m.hash&&this.library.byAlias(m.file))||null;if(known?.description)return {row:this.library.seen(known,meta),bytes:null};
+  const bytes=(known&&this.library.bytes(known.hash)?.data)||await this.download(m,signal);
+  return {row:this.library.sighting(bytes,{file:m.file,...meta}),bytes};}
  // Known images come back as their saved interpretation instead of pixels; `fresh` lists the hashes whose pixels were loaded.
  async read(message,config,signal){const images=[],notes=[],fresh=[];for(const m of message.media.slice(0,3)){const action=m.type==='record'?'audio':m.type,key=m.type==='image'?'images':action;if(!config.media[key]){notes.push({type:m.type,status:'disabled'});continue;}let file;
   try{let bytes,row=null;

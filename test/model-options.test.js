@@ -5,6 +5,17 @@ import { modelOptions } from '../public/model-options.js';
 import { Store } from '../src/store.js';
 import { fixtureStore, CONFIG } from './fixture.js';
 import { createApp } from '../src/server.js';
+import { DEFAULTS, DEFAULT_OBSERVER, assertConfig } from '../src/config.js';
+import { backgroundSpecs, saveBackgroundSpecs } from '../public/model-options.js';
+
+test('background roles preserve legacy choices and save independent models across all providers',()=>{
+ const c=structuredClone(CONFIG);c.roles={observer:'fable',memory:'fable',auditor:'gpt',discovery:'gpt'};
+ const original=structuredClone(c),specs=backgroundSpecs(c);specs.observer={...DEFAULT_OBSERVER};specs.memory={provider:'deepseek',model:'native-model-id',effort:'off'};specs.discovery={provider:'codex',model:'gpt-6-luna',effort:'high'};
+ saveBackgroundSpecs(c,specs);assert.doesNotThrow(()=>assertConfig(c));assert.deepEqual(backgroundSpecs(c),specs);assert.deepEqual(c.roleModels.fable,original.roleModels.fable);assert.deepEqual(c.personas,original.personas);assert.equal(c.paused,true);
+ specs.observer.effort='high';assert.equal(backgroundSpecs(c).observer.effort,'low');assert.equal(backgroundSpecs(c).auditor.effort,'medium');
+ c.roleModels[c.roles.memory].provider='arbitrary';assert.throws(()=>assertConfig(c),/后台模型/);
+});
+test('fresh observer uses GPT 6.1 Sol low without lowering other roles',()=>{assert.deepEqual(backgroundSpecs(DEFAULTS).observer,DEFAULT_OBSERVER);assert.equal(backgroundSpecs(DEFAULTS).memory.effort,'medium');});
 
 const catalog={models:[{id:'full',name:'Full',efforts:['low','medium','high','ultra']},{id:'small',name:'Small',efforts:['low','medium']},{id:'fixed',name:'Fixed',efforts:[]}]};
 test('before detection, current model and effort stay intact',()=>{const p=modelOptions(undefined,'saved','high');assert.equal(p.model,'saved');assert.equal(p.effort,'high');assert.equal(p.canSelectModel,false);assert.equal(p.canSelectEffort,false);});

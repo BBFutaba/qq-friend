@@ -47,9 +47,10 @@ test('approved formal baseline is opt-in, read-only and never leaks debug back t
  assert.ok(visibleMemory(formal,groupId,'gpt',enabled));assert.ok(!visibleMemory(debug,groupId,'gpt',{...enabled,debug:false}));
  assert.throws(()=>change(x,{...formal,protected:false},{debug:true}),/保护|范围/);
 });
-test('expired facts, pending rows, private interests, other groups and personas stay excluded',t=>{
+test('expired facts, pending rows, private interests, other personas and other groups\' group-level memories stay excluded',t=>{
  const x=setup(t),base=x.memory();
- for(const patch of [{expiresAt:Date.now()-1},{status:'pending'},{groupId:'other'},{scope:'private'},{scope:'persona',persona:'claude'}])assert.equal(visibleMemory({...base,...patch},groupId,'gpt',x.c),false);
+ for(const patch of [{expiresAt:Date.now()-1},{status:'pending'},{groupId:'other',userId:''},{groupId:'other',category:'topic',expiresAt:Date.now()+60000},{groupId:'private:10000009'},{scope:'private'},{scope:'persona',persona:'claude'}])assert.equal(visibleMemory({...base,...patch},groupId,'gpt',x.c),false,JSON.stringify(patch));
+ assert.equal(visibleMemory({...base,groupId:'other'},groupId,'gpt',x.c),true,'a person fact learned in another group follows the QQ account');
 });
 test('short-term topics require lexical overlap and expire without deleting evidence',t=>{
  const x=setup(t),topic=x.memory('周末约玩游戏',{category:'topic',expiresAt:Date.now()+10000});

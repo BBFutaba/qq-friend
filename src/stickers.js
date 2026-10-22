@@ -13,15 +13,23 @@ export function sniffImage(b){if(!b||b.length<12)return '';const hex=b.subarray(
  return hex==='89504e47'?MIME.png:hex.startsWith('ffd8ff')?MIME.jpg:hex==='47494638'?MIME.gif:hex.startsWith('424d')?MIME.bmp:hex==='52494646'&&b.subarray(8,12).toString('ascii')==='WEBP'?MIME.webp:'';}
 // QQ marks reusable emoji images ("[动画表情]", sub_type 1) in the segment; only a hint, the owner confirms.
 const stickerHint=(subType,summary)=>Number(subType)===1||/表情/.test(String(summary||''));
+// QQ usually names an image after the MD5 of its bytes ("<32 hex>.jpg"). Such a name is trusted as an alias only once
+// it has been checked against the bytes, after qq-bridge's id-based sticker lookup; a reused or random name never is.
+const md5Name=file=>{const name=String(file||'').split(/[\\/]/).pop().split('.')[0].replace(/[{}]/g,'').toLowerCase();return /^[0-9a-f]{32}$/.test(name)?name:'';};
 export class MediaLibrary {
  constructor(store,dir=join(DATA,'media-cache')){this.store=store;this.dir=dir;}
  get(hash){return validHash(hash)?this.store.get(mediaId(hash)):null;}
+ // A known image by its verified QQ file name, without downloading it.
+ byAlias(file){const name=md5Name(file);return name?this.store.list('media',m=>m.alias===name,1)[0]||null:null;}
+ // Counts one more sighting; arrival indexing and description can both read the same message, which counts once.
+ seen(row,{groupId='',messageId='',userId='',at=Date.now(),subType,summary}={}){if(messageId&&row.messageIds.includes(messageId))return row;
+  return this.store.update(row.id,{seenCount:row.seenCount+1,lastSeen:at,groups:[...new Set([...row.groups,groupId].filter(Boolean))].slice(-10),senders:[...new Set([...row.senders,userId].filter(Boolean))].slice(-50),messageIds:[...row.messageIds,messageId].filter(Boolean).slice(-8),likelySticker:row.likelySticker||stickerHint(subType,summary)});}
  // Every incoming image passes here. A returned description means the model need not see the pixels again.
  sighting(bytes,{type='image',file='',groupId='',messageId='',userId='',at=Date.now(),subType,summary}={}){
-  const hash=mediaHash(bytes),id=mediaId(hash),old=this.store.get(id),mime=sniffImage(bytes),hint=stickerHint(subType,summary);
-  // Arrival indexing and description can both read the same message; it counts once.
-  let row=old&&messageId&&old.messageIds.includes(messageId)?old:old?this.store.update(id,{seenCount:old.seenCount+1,lastSeen:at,groups:[...new Set([...old.groups,groupId].filter(Boolean))].slice(-10),senders:[...new Set([...old.senders,userId].filter(Boolean))].slice(-50),messageIds:[...old.messageIds,messageId].filter(Boolean).slice(-8),likelySticker:old.likelySticker||hint})
-   :this.store.create('media',{hash,type,mime,size:bytes.length,file:String(file).slice(0,200),description:'',source:'',model:'',analyzedAt:null,editedAt:null,seenCount:1,firstSeen:at,lastSeen:at,groups:[groupId].filter(Boolean),senders:[userId].filter(Boolean),messageIds:[messageId].filter(Boolean),likelySticker:hint,sticker:false,repertoire:null,sentCount:0,stored:false},id);
+  const hash=mediaHash(bytes),id=mediaId(hash),old=this.store.get(id),mime=sniffImage(bytes),named=md5Name(file),alias=named&&named===createHash('md5').update(bytes).digest('hex')?named:'';
+  let row=old?this.seen(old,{groupId,messageId,userId,at,subType,summary})
+   :this.store.create('media',{hash,type,mime,size:bytes.length,file:String(file).slice(0,200),alias,description:'',source:'',model:'',analyzedAt:null,editedAt:null,seenCount:1,firstSeen:at,lastSeen:at,groups:[groupId].filter(Boolean),senders:[userId].filter(Boolean),messageIds:[messageId].filter(Boolean),likelySticker:stickerHint(subType,summary),sticker:false,repertoire:null,sentCount:0,stored:false},id);
+  if(alias&&!row.alias)row=this.store.update(id,{alias});
   if(!row.stored&&mime){mkdirSync(this.dir,{recursive:true});writeFileSync(this.path(hash,mime),bytes);row=this.store.update(id,{stored:true});this.evict();}
   return row;}
  path(hash,mime){return join(this.dir,`${hash}.${EXT[mime]||'bin'}`);}

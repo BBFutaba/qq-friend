@@ -1,6 +1,7 @@
 // Ported from Tulpa onebot.py / onebot_events.py. See docs/REUSE.md.
 import { EventEmitter } from 'node:events';
 import WebSocket from 'ws';
+import { cardText } from './links.js';
 export function localUrl(value,ws=false){let u;try{u=new URL(value);}catch{throw new Error('OneBot 地址无效');}if(!(ws?['ws:','wss:']:['http:','https:']).includes(u.protocol)||!['127.0.0.1','localhost','[::1]'].includes(u.hostname)||u.username||u.password||u.search||u.hash)throw new Error('OneBot 必须使用本机地址，令牌不得放入 URL');return u.href.replace(/\/$/,'');}
 export class OneBot extends EventEmitter {
  constructor(secrets,botId){super();this.secrets=secrets;this.botId=botId;this.state={status:'stopped',account:'',lastEventAt:0,lastMessageAt:0,note:'尚未连接'};this.stopped=true;this.delay=1000;}
@@ -18,7 +19,8 @@ export class OneBot extends EventEmitter {
  }
  async whoami(){const data=await this.action('get_login_info');return {account:String(data?.user_id||''),nickname:String(data?.nickname||'')};}
  async probe(){const who=await this.whoami();if(who.account!==this.botId)throw new Error(this.botId?`OneBot 当前登录 QQ ${who.account}，与配置的机器人 QQ ${this.botId} 不一致`:`OneBot 当前登录 QQ ${who.account}；请在「连接与环境」把它填为机器人 QQ`);this.state.account=this.botId;return who;}
- async send(type,target,text){await this.probe();return this.action(type==='group'?'send_group_msg':'send_private_msg',{[type==='group'?'group_id':'user_id']:Number(target),message:[{type:'text',data:{text}}],auto_escape:true},true);}
+ // quote: the QQ message id this text answers, shown as a reply when newer messages came in between.
+ async send(type,target,text,quote=''){await this.probe();return this.action(type==='group'?'send_group_msg':'send_private_msg',{[type==='group'?'group_id':'user_id']:Number(target),message:[...(/^-?\d{1,20}$/.test(String(quote))?[{type:'reply',data:{id:String(quote)}}]:[]),{type:'text',data:{text}}],auto_escape:true},true);}
  // Stickers are sent from the local cache as base64; sub_type 1 asks the client to show it as an emoji image.
  async sendImage(type,target,bytes){await this.probe();return this.action(type==='group'?'send_group_msg':'send_private_msg',{[type==='group'?'group_id':'user_id']:Number(target),message:[{type:'image',data:{file:'base64://'+bytes.toString('base64'),sub_type:1,summary:'[动画表情]'}}]},true);}
  start(){if(!this.stopped)return;this.stopped=false;this.connect();}
@@ -45,6 +47,6 @@ export function normalizeEvent(event,config){
  if(!/^\d+$/.test(userId)||event.message_id===undefined)return null;
  const segments=Array.isArray(event.message)?event.message:[{type:'text',data:{text:String(event.raw_message||event.message||'')}}];
  let text='';const media=[];let replyId='',mentioned=false;
- for(const s of segments){if(s.type==='text')text+=String(s.data?.text||'');else if(s.type==='reply')replyId=String(s.data?.id||'');else if(s.type==='at'){mentioned ||= String(s.data?.qq)===config.botId;text+=` [@${s.data?.qq}] `;}else if(['image','record','video'].includes(s.type)){media.push({type:s.type,file:String(s.data?.file||''),url:String(s.data?.url||''),...(s.type==='image'&&(s.data?.sub_type!==undefined||s.data?.summary)?{subType:Number(s.data.sub_type)||0,summary:String(s.data.summary||'').slice(0,40)}:{})});text+=` [${s.type}] `;}}
- return {groupId,userId,type,externalId:String(event.message_id),text:text.slice(0,12000),name:String(event.sender?.card||event.sender?.nickname||userId).slice(0,80),media:media.slice(0,5),replyId,mentioned,at:Number(event.time||Date.now()/1000)*1000,direction:'in'};
+ for(const s of segments){if(s.type==='text')text+=String(s.data?.text||'');else if(s.type==='reply')replyId=String(s.data?.id||'');else if(s.type==='at'){mentioned ||= String(s.data?.qq)===config.botId;text+=` [@${s.data?.qq}] `;}else if(['image','record','video'].includes(s.type)){media.push({type:s.type,file:String(s.data?.file||''),url:String(s.data?.url||''),...(s.type==='image'&&(s.data?.sub_type!==undefined||s.data?.summary)?{subType:Number(s.data.sub_type)||0,summary:String(s.data.summary||'').slice(0,40)}:{})});text+=` [${s.type}] `;}else{const card=cardText(s);if(card)text+=` ${card} `;}}
+ return {groupId,userId,type,externalId:String(event.message_id),text:text.slice(0,12000),name:String(event.sender?.card||event.sender?.nickname||userId).slice(0,80),nickname:String(event.sender?.nickname||'').slice(0,80),media:media.slice(0,5),replyId,mentioned,at:Number(event.time||Date.now()/1000)*1000,direction:'in'};
 }

@@ -4,14 +4,17 @@ export const memoryOptions = c => ({ ...MEMORY_DEFAULTS, ...c.memory });
 export const categoryOf = m => m.category || (m.scope === 'persona' ? 'impression' : m.userId ? 'fact' : 'event');
 export const protectedMemory = m => m.protected ?? m.actor === 'owner';
 export const expiredMemory = (m, now = Date.now()) => Number.isFinite(m.expiresAt) && m.expiresAt <= now;
+// Facts about a person learned in a group follow that QQ account into every group and private chat. Group events, short
+// topics, the owner's private interests and anything learned in a private chat stay where they were learned.
+export const crossGroupMemory = m => !!m.userId && categoryOf(m) !== 'topic' && m.scope !== 'private' && !String(m.groupId).startsWith('private:');
 export function visibleMemory(m, groupId, persona, c, now = Date.now()) {
-  if (m.groupId !== groupId || m.status !== 'approved' || expiredMemory(m, now)) return false;
+  if ((m.groupId !== groupId && !crossGroupMemory(m)) || m.status !== 'approved' || expiredMemory(m, now)) return false;
   const branch = m.debug === c.debug || (c.debug && memoryOptions(c).debugReadApproved && m.debug === false);
   return branch && (m.scope === 'shared' || (m.scope === 'persona' && m.persona === persona) ||
     (groupId === `private:${c.ownerId}` && m.scope === 'private' && m.userId === c.ownerId));
 }
 export function sameMemoryScope(a, b) {
-  return a.groupId === b.groupId && a.debug === b.debug && a.scope === b.scope &&
+  return (a.groupId === b.groupId || crossGroupMemory(a) && crossGroupMemory(b)) && a.debug === b.debug && a.scope === b.scope &&
     (a.persona || '') === (b.persona || '') && (a.userId || '') === (b.userId || '');
 }
 // Preserve decimal points, minus signs and punctuation inside facts: 1.5 must not dedup as 15.
