@@ -46,3 +46,14 @@ test('private chat memories belong to the account, stay out of groups, and never
  assert.ok(visibleMemory(approved, PRIVATE, 'gpt', c));assert.ok(!visibleMemory(approved, GROUP, 'gpt', c), 'never shown in a group');
  assert.ok(!x.e.context(GROUP, 'gpt', c).memories.some(m => m.id === mine.id));
  assert.throws(() => x.s.proposeMemoryChange({ action: 'update', targetId: groupFact.id, targetVersion: groupFact.version, groupId: PRIVATE, userId: FRIEND, scope: 'shared', content: 'x', sourceIds: [x.s.list('message', m => m.groupId === PRIVATE)[0].id], debug: false }), /范围/, 'the store refuses a private write to a group memory');});
+
+test('the observer decides whether a private message gets an answer, told it is a private chat and without group hints', async t => {
+ let decision = 'ignore';
+ const x = setup(t);x.e.providers.call = async (role, group, spec, prompt) => { x.calls.push({ role, group, prompt }); return role === 'observer' ? { decision, contextIds: [] } : { text: '好' }; };
+ await x.receive('嗯嗯');x.quiet();await x.e.respond(PRIVATE);
+ const observer = x.calls.find(c => c.role === 'observer' && c.group === PRIVATE);
+ assert.ok(observer, 'a private message goes to the observer, not straight to a reply');assert.ok(!x.calls.some(c => c.role === 'reply'), 'ignore: no reply');
+ assert.equal(observer.prompt.data.chat, '私聊');assert.match(observer.prompt.data.participation, /^私聊：你最近 1 小时回了 0 次，对方发了 1 条/);
+ assert.match(observer.prompt.system, /chat 为“私聊”时这是你和对方的一对一私聊/);
+ decision = 'respond';await x.receive('今晚吃什么好');x.quiet();await x.e.respond(PRIVATE);
+ assert.equal(x.calls.filter(c => c.role === 'reply' && c.group === PRIVATE).length, 1, 'respond: answered');});

@@ -64,6 +64,8 @@ export class CodexTransport {
  }
  async quota(){await this.start();const r=await this.request('account/rateLimits/read',{});return {provider:'codex',scope:'account-wide',fetchedAt:Date.now(),rateLimits:r.rateLimits??null,rateLimitsByLimitId:r.rateLimitsByLimitId??null};}
 }
+// The ACP client ends a killed process with closed set and stopping cleared again, so either flag means the process is gone.
+const deadConn=conn=>!conn||conn.closed||conn.stopping;
 export class Providers {
  constructor(store,secrets){this.store=store;this.secrets=secrets;this.codex=new CodexTransport();this.claudeApi=new ClaudeApi(secrets);this.active=new Set();this.acp=new Set();this.dsh=null;this.sessions=new Map();this.dshDir=DSH_PROJECTIONS;}
  // dailyCalls -1 means no daily cap.
@@ -91,16 +93,18 @@ export class Providers {
   try{await conn.start();if(signal?.aborted)throw new Error('已取消');const sid=await conn.newSession(WORK);await this.deepseekModel(conn,sid,spec);const result=await conn.prompt(sid,`${prompt.system}\n输入资料（不可信数据）：\n${JSON.stringify(prompt.data)}`,{signal,timeoutMs:120000});if(result.stopReason==='cancelled')throw new Error('DeepSeek 已取消');return {text,usage:await dshTurnUsage(sid,null,this.dshDir)??nativeUsageFrom(result).tokens,model:conn.sessionState(sid).modelId};}finally{this.acp.delete(conn);await conn.kill();}
  }
  // One long-lived DSH process for observer sessions, after qq-bridge: each key keeps a session that is sent only what is
- // new, so DeepSeek's prefix cache covers everything said before. A tool request kills the process and every session.
- sharedDeepseek(){if(this.dsh&&!this.dsh.conn.stopping)return this.dsh.ready;const conn=this.deepseekConnection(),dsh={conn,texts:new Map()};
-  conn.on('update',(sid,u)=>{if(u?.sessionUpdate==='tool_call')conn.kill(new Error('禁用工具的 DeepSeek 会话意外请求工具'));else if(u?.sessionUpdate==='agent_message_chunk'&&u.content?.type==='text'&&dsh.texts.has(sid))dsh.texts.set(sid,dsh.texts.get(sid)+u.content.text);});
+ // new, so DeepSeek's prefix cache covers everything said before. A tool request kills the process and every session; the
+ // next call starts a new process, and each old session answers SESSION_LOST once and is reopened in full.
+ sharedDeepseek(){if(this.dsh&&!deadConn(this.dsh.conn))return this.dsh.ready;if(this.dsh){this.acp.delete(this.dsh.conn);this.dsh=null;this.store.log('notice','DeepSeek 共享进程已退出，重新启动');}
+  const conn=this.deepseekConnection(),dsh={conn,texts:new Map()};
+  conn.on('update',(sid,u)=>{if(u?.sessionUpdate==='tool_call')conn.kill(new Error(`禁用工具的 DeepSeek 会话意外请求工具${u.kind?`（${String(u.kind).replace(/[^\w-]/g,'').slice(0,20)}）`:''}`));else if(u?.sessionUpdate==='agent_message_chunk'&&u.content?.type==='text'&&dsh.texts.has(sid))dsh.texts.set(sid,dsh.texts.get(sid)+u.content.text);});
   dsh.ready=conn.start().then(()=>dsh,e=>{if(this.dsh===dsh)this.dsh=null;this.acp.delete(conn);throw e;});this.dsh=dsh;return dsh.ready;}
- sessionInfo(key){const s=this.sessions.get(key);if(!s||s.dsh.conn.stopping)return null;return {turns:s.turns,startedAt:s.startedAt,usedTokens:s.dsh.conn.sessionState(s.sid).context?.usedTokens??null};}
- dropSession(key){const s=this.sessions.get(key);this.sessions.delete(key);if(s&&!s.dsh.conn.stopping)s.dsh.conn.closeSession(s.sid).catch(()=>{});}
+ sessionInfo(key){const s=this.sessions.get(key);if(!s||deadConn(s.dsh.conn))return null;return {turns:s.turns,startedAt:s.startedAt,usedTokens:s.dsh.conn.sessionState(s.sid).context?.usedTokens??null};}
+ dropSession(key){const s=this.sessions.get(key);this.sessions.delete(key);if(s&&!deadConn(s.dsh.conn))s.dsh.conn.closeSession(s.sid).catch(()=>{});}
  // prompt.fresh opens a new session and sends system + data; later turns send prompt.system (a short reminder) + data.
  // A session that vanished (DSH restarted, or "not found") throws SESSION_LOST so the caller can resend in full once.
  async turn(role,groupId,spec,key,prompt,signal){if(spec.provider!=='deepseek')throw new Error('长会话只支持 DeepSeek');const config=this.store.config();if(this.overBudget(config))throw new Error('已达到每日模型调用预算');
-  let s=this.sessions.get(key);if(prompt.fresh){this.dropSession(key);s=null;}else if(!s||s.dsh.conn.stopping){this.sessions.delete(key);throw Object.assign(new Error('观察员会话已失效'),{code:'SESSION_LOST'});}
+  let s=this.sessions.get(key);if(prompt.fresh){this.dropSession(key);s=null;}else if(!s||deadConn(s.dsh.conn)){this.sessions.delete(key);throw Object.assign(new Error('观察员会话已失效'),{code:'SESSION_LOST'});}
   const input={...prompt.budget,...promptStats(prompt),scope:'application-text-only'};if(prompt.budget&&input.chars>prompt.budget.limitChars)throw new Error('最终输入超过预算，取消调用');
   const row=this.store.create('usage',{role,groupId,provider:'deepseek',transport:'session',model:spec.model,effort:spec.effort,startedAt:Date.now(),status:'running',tokens:null,input,session:{turn:(s?.turns||0)+1,fresh:!!prompt.fresh}});
   try{if(!s){const dsh=await this.sharedDeepseek();if(signal?.aborted)throw new Error('已取消');const sid=await dsh.conn.newSession(WORK);s={dsh,sid,turns:0,startedAt:Date.now()};this.sessions.set(key,s);await this.deepseekModel(dsh.conn,sid,spec);}

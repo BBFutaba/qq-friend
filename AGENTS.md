@@ -18,7 +18,7 @@ Follow **[DEPLOY.md](DEPLOY.md)** step by step, and obey its section 0 rules. In
 |---|---|
 | `src/server.js` | HTTP API, auth (admin key → cookie, same-origin header), static dashboard |
 | `src/engine.js` | Receive → wake rules → (observer for chatter: a fresh snapshot, or with `wake.observerSession` a long-lived DeepSeek session per group that gets only deltas) → reply → split → outbox; memory extraction; proactive topics and approvals |
-| `src/wake.js` | Cheap pre-model rules after qq-bridge: direct reasons (private, @, reply to bot, names, keywords) skip the observer; batch windows; observer rate limits; settings validation |
+| `src/wake.js` | Cheap pre-model rules after qq-bridge: direct reasons (@, reply to bot, names, keywords) skip the observer; allowlisted private chats always go to the observer (told it is a private chat) but skip its rate limits and the reply cooldown/hourly cap; batch windows; observer rate limits; settings validation |
 | `src/model-view.js` | Compact model-facing chat table (ref, who, minutes ago, text, reply ref); refs map back to message ids |
 | `src/onebot.js` | OneBot 11 client: loopback-only URLs, allowlisted actions, account identity checks |
 | `src/links.js` | Share cards (ark `json`, `share`), merged forwards and files → one sanitized line of message text; no network |

@@ -1,5 +1,6 @@
 // Cheap rules decide when a model is asked at all, after qq-bridge's wake triggers: messages aimed at the bot
-// go straight to the reply; other chatter is batched and judged by the observer at a bounded rate.
+// go straight to the reply; other chatter is batched and judged by the observer at a bounded rate. Private chats wake fast
+// ('private' counts as direct here) but the engine still lets the observer decide, without its rate limits.
 // observerSession (DeepSeek observer only) keeps one session per group that receives only what is new each turn,
 // rotated after observerSessionTurns turns or observerSessionMaxTokens of context. botAccounts are other bots in the group,
 // flagged by the owner: they are never "direct", and at most botExchanges replies in a row may answer them before a human
