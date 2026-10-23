@@ -22,6 +22,8 @@ Follow **[DEPLOY.md](DEPLOY.md)** step by step, and obey its section 0 rules. In
 | `src/model-view.js` | Compact model-facing chat table (ref, who, minutes ago, text, reply ref); refs map back to message ids |
 | `src/onebot.js` | OneBot 11 client: loopback-only URLs, allowlisted actions, account identity checks |
 | `src/links.js` | Share cards (ark `json`, `share`), merged forwards and files → one sanitized line of message text; no network |
+| `src/forward.js` | Merged-forward transcripts from OneBot `get_forward_msg` and the NSFW word check; a hit is never shown to a model and gets `media.nsfwReply` |
+| `src/wander.js` | Allowlisted Bilibili/YouTube links (X deliberately off) → Wander's local `POST /api/read-link` (Bearer linkToken); the cleaned note, plus a subtitle excerpt (or top comments without subtitles) when Wander has one, is attached to the message as `linkNotes`. The observer sees only the one-line note; the reply model also gets the excerpt as `links`, and its `web_read` of a video page goes to Wander |
 | `src/pace.js` | Per-reply length lean (drawn, wider for direct questions) and the group's local time, both sent in the reply's `data` |
 | `src/providers.js` | Codex / Claude / DeepSeek adapters; native tools disabled, Claude API optionally exposes public chat queries. One shared DeepSeek Harness process holds the observer sessions (`turn`, `sessionInfo`, `dropSession`); DeepSeek token usage is read from DSH's session projection cache |
 | `src/claude-api.js` | Claude API request building: preset blocks, budget, web tools, and the prompt-cache breakpoints (stable prefix 1 h by default, moving 5 min mark across tool rounds) |

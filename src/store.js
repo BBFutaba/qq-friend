@@ -33,7 +33,7 @@ export class Store {
  remove(id){this.db.prepare('DELETE FROM records WHERE id=?').run(id);}
  seen(key){return !this.db.prepare('INSERT OR IGNORE INTO dedup VALUES(?,?)').run(key,Date.now()).changes;}
  // Sections added after an install was created (memory, wake) are filled in from their defaults.
- config(){const {id,kind,version,updated,...c}=this.get('config');return {...c,memory:memoryOptions(c),wake:wakeOptions(c)};}
+ config(){const {id,kind,version,updated,...c}=this.get('config');return {...c,media:{...DEFAULTS.media,...c.media},memory:memoryOptions(c),wake:wakeOptions(c)};}
  saveConfig(c){const old=this.config();assertConfig(c);const next={...c,revision:old.revision+1};this.update('config',next);this.log('config','后台更新配置',{revision:next.revision});return next;}
  log(type,message,details={}){return this.create('log',{type,message,details});}
  memory(input,actor='owner'){
@@ -42,7 +42,8 @@ export class Store {
   if(typeof debug!=='boolean'||typeof userId!=='string'||!Array.isArray(sourceIds)||sourceIds.length>20||sourceIds.some(id=>{const m=this.get(id);return m?.kind!=='message'||m.groupId!==groupId;}))throw new Error('记忆来源或分支无效');
   if(scope==='persona'&&!['gpt','claude','deepseek'].includes(persona))throw new Error('请选择记忆所属人格');
   if(scope==='private'&&userId!==this.config().ownerId)throw new Error('私人兴趣仅属于审批人');
-  if(!this.config().groups.some(g=>g.id===groupId)&&groupId!==`private:${this.config().ownerId}`)throw new Error('记忆所属群未启用');
+  // A configured group, or the private chat of an allowlisted account (the owner is always on the list).
+  const cfg=this.config();if(!cfg.groups.some(g=>g.id===groupId)&&!(String(groupId).startsWith('private:')&&cfg.privateAllowlist.includes(groupId.slice(8))))throw new Error('记忆所属群未启用');
   if(actor!=='owner'&&(!sourceIds.length||sourceIds.some(id=>{const m=this.get(id);return m.direction==='out'&&(m.debug!==debug||!m.delivered);})))throw new Error('agent 记忆必须有同分支的消息来源');
   const fields=memoryFields(input,{scope,userId});
   if(actor!=='owner'){

@@ -47,7 +47,7 @@ test('the reply may send a repertoire sticker by its menu code, after the text, 
 test('unknown sticker codes are ignored, and an empty reply with no valid sticker sends nothing',async t=>{
  let answer={text:'好',sticker:'s7'};const x=setup(t,{reply:()=>answer});sticker(x);const say=t=>x.s.create('message',{groupId:GROUP,userId:'10000009',name:'小明',text:t,media:[],at:Date.now(),direction:'in'});
  say('一');await x.round();assert.deepEqual(x.bot.sent.map(s=>s.text),['好']);assert.equal(x.bot.images.length,0);
- answer={text:'',sticker:'not-a-code'};say('二');await x.round();assert.equal(x.bot.sent.length,1);assert.equal(x.bot.images.length,0);assert.ok(x.s.list('log',l=>l.type==='error').some(l=>l.message.includes('回复内容为空')));});
+ answer={text:'',sticker:'not-a-code'};say('二');await x.round();assert.equal(x.bot.sent.length,1);assert.equal(x.bot.images.length,0);assert.ok(x.s.list('log',l=>l.details?.decision==='reply-skip').length,'logged as a decision to stay quiet');assert.ok(!x.s.list('log',l=>l.type==='error').length);});
 test('reply instructions are identical with or without a repertoire (prompt caching); a debug sticker-only reply tells the owner which sticker',async t=>{
  const plain=setup(t);plain.s.create('message',{groupId:GROUP,userId:'10000009',name:'小明',text:'在吗',media:[],at:Date.now(),direction:'in'});await plain.round();assert.equal(plain.lastReply().prompt.data.stickers,undefined);const plainSystem=plain.lastReply().prompt.system;
  const x=setup(t,{debug:true,reply:()=>({text:'',sticker:'s1'})});sticker(x);x.s.create('message',{groupId:GROUP,userId:'10000009',name:'小明',text:'离谱',media:[],at:Date.now(),direction:'in'});await x.round();assert.ok(x.lastReply().prompt.data.stickers);assert.equal(x.lastReply().prompt.system,plainSystem);

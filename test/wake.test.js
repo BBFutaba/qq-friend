@@ -16,10 +16,10 @@ import { chatView, resolveRefs, messageText } from '../src/model-view.js';
 import { wakeReason, stronger, unfinished, mentions, WAKE_DEFAULTS } from '../src/wake.js';
 
 test('wake reasons: private, @, reply to the bot, names with word boundaries, keywords, else chatter',()=>{
- const bot=new Set(['900']),opts={names:['小鲸鱼','gpt'],keywords:['天气'],isBotMessage:id=>bot.has(id)},m=(x)=>({groupId:GROUP,text:'',...x});
+ const bot=new Set(['900']),opts={names:['小团子','gpt'],keywords:['天气'],isBotMessage:id=>bot.has(id)},m=(x)=>({groupId:GROUP,text:'',...x});
  assert.equal(wakeReason(m({groupId:`private:${OWNER}`}),opts),'private');assert.equal(wakeReason(m({mentioned:true}),opts),'mention');
  assert.equal(wakeReason(m({replyId:'900'}),opts),'reply');assert.equal(wakeReason(m({replyId:'901'}),opts),'chatter');
- assert.equal(wakeReason(m({text:'小鲸鱼你在吗'}),opts),'name');assert.equal(wakeReason(m({text:'问问 GPT 吧'}),opts),'name');assert.equal(wakeReason(m({text:'我在用chatgpt'}),opts),'chatter');
+ assert.equal(wakeReason(m({text:'小团子你在吗'}),opts),'name');assert.equal(wakeReason(m({text:'问问 GPT 吧'}),opts),'name');assert.equal(wakeReason(m({text:'我在用chatgpt'}),opts),'chatter');
  assert.equal(wakeReason(m({text:'今天天气不错'}),opts),'keyword');assert.equal(wakeReason(m({text:'哈哈哈'}),opts),'chatter');
  assert.equal(stronger('chatter','mention'),'mention');assert.equal(stronger('mention','chatter'),'mention');assert.equal(stronger('chatter',undefined),'chatter');
  assert.equal(mentions('Hi Bob!','bob'),true);assert.equal(mentions('bobby','bob'),false);});
@@ -55,8 +55,8 @@ function setup(t,{decision=()=>({decision:'ignore'}),wake={},persona={}}={}){
  const round=async()=>{e.lastReply.clear();await e.respond(GROUP);};
  return {s,e,calls,queued,say,round,observers:()=>calls.filter(x=>x.role==='observer'),replies:()=>calls.filter(x=>x.role==='reply'),stats:()=>s.list('wake-stats')[0]||{}};}
 test('a message aimed at the bot goes straight to the reply without an observer call',async t=>{
- for(const [label,extra] of [['@',{mentioned:true}],['name',{text:'小鲸鱼在吗'}]]){
-  const x=setup(t,{wake:{names:['小鲸鱼']}});x.say('随便聊聊');x.say(extra.text||'喂',extra.text?{}:extra);await x.round();
+ for(const [label,extra] of [['@',{mentioned:true}],['name',{text:'小团子在吗'}]]){
+  const x=setup(t,{wake:{names:['小团子']}});x.say('随便聊聊');x.say(extra.text||'喂',extra.text?{}:extra);await x.round();
   assert.equal(x.observers().length,0,label);assert.equal(x.replies().length,1,label);assert.equal(x.queued.length,1,label);assert.equal(x.stats().direct,1);
   assert.match(x.s.list('log',l=>l.type==='decision')[0].message,/直接回复/);}
  const reply=setup(t),mine=reply.s.create('message',{groupId:GROUP,userId:BOT,name:'GPT',text:'我说过的话',media:[],at:Date.now()-70000,direction:'out',delivered:true,debug:true,externalId:'bot-1'});reply.say('回你',{replyId:'bot-1'});await reply.round();

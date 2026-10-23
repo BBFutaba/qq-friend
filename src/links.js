@@ -3,7 +3,7 @@
 // control characters and brackets are replaced (a title cannot fake [图片], an @ or a new prompt line, as qq-bridge
 // guards its media summaries), lengths are capped, and Bilibili tracking query strings are dropped. Merged forwards and
 // files get a placeholder instead of an empty message. Card fields naming the sharer (host uin / nick) are never read.
-const clean=(v,max)=>{const s=String(v??'').replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g,' ').replace(/\[/g,'［').replace(/\]/g,'］').replace(/\s+/g,' ').trim();return s.length>max?s.slice(0,max-1)+'…':s;};
+export const clean=(v,max)=>{const s=String(v??'').replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g,' ').replace(/\[/g,'［').replace(/\]/g,'］').replace(/\s+/g,' ').trim();return s.length>max?s.slice(0,max-1)+'…':s;};
 const TRACKED=/(^|\.)(b23\.tv|bilibili\.com|bili2233\.cn)$/;
 export function cleanUrl(raw){let u;try{u=new URL(String(raw??'').trim());}catch{return '';}if(!['http:','https:'].includes(u.protocol)||u.username||u.password)return '';
  if(TRACKED.test(u.hostname))u.search='';u.hash='';const href=(u.href.length<=200?u.href:(u.origin+u.pathname).slice(0,200)).replace(/\[/g,'%5B').replace(/\]/g,'%5D');return href;}

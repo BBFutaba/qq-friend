@@ -2,12 +2,13 @@
 import { EventEmitter } from 'node:events';
 import WebSocket from 'ws';
 import { cardText } from './links.js';
+import { forwardRef } from './forward.js';
 export function localUrl(value,ws=false){let u;try{u=new URL(value);}catch{throw new Error('OneBot 地址无效');}if(!(ws?['ws:','wss:']:['http:','https:']).includes(u.protocol)||!['127.0.0.1','localhost','[::1]'].includes(u.hostname)||u.username||u.password||u.search||u.hash)throw new Error('OneBot 必须使用本机地址，令牌不得放入 URL');return u.href.replace(/\/$/,'');}
 export class OneBot extends EventEmitter {
  constructor(secrets,botId){super();this.secrets=secrets;this.botId=botId;this.state={status:'stopped',account:'',lastEventAt:0,lastMessageAt:0,note:'尚未连接'};this.stopped=true;this.delay=1000;}
  change(status,note){this.state={...this.state,status,note};this.emit('state',this.state);}
  async action(action,payload={},writing=false){
-  const allowed=writing?['send_group_msg','send_private_msg']:['get_login_info','get_status','get_group_list','get_group_member_list','get_image','get_record','get_video'];
+  const allowed=writing?['send_group_msg','send_private_msg']:['get_login_info','get_status','get_group_list','get_group_member_list','get_image','get_record','get_video','get_forward_msg'];
   if(!allowed.includes(action))throw new Error('OneBot 接口不在允许范围');
   const url=localUrl(this.secrets.httpUrl);if(!this.secrets.token)throw new Error('OneBot 令牌尚未配置');
   try{const response=await fetch(`${url}/${action}`,{method:'POST',redirect:'error',headers:{'Content-Type':'application/json',Authorization:`Bearer ${this.secrets.token}`},body:JSON.stringify(payload),signal:AbortSignal.timeout(12000)});
@@ -17,6 +18,7 @@ export class OneBot extends EventEmitter {
    if(r.status!=='ok'||r.retcode!==0)throw new Error('OneBot 回执格式无效');return r.data;
   }catch(e){if(writing&&!e.confirmedRejected)throw Object.assign(new Error('发送结果未知，不会自动重试，请在 QQ 核对'),{uncertain:true});throw e;}
  }
+ async forward(id){return this.action('get_forward_msg',{id:String(id)});}
  async whoami(){const data=await this.action('get_login_info');return {account:String(data?.user_id||''),nickname:String(data?.nickname||'')};}
  async probe(){const who=await this.whoami();if(who.account!==this.botId)throw new Error(this.botId?`OneBot 当前登录 QQ ${who.account}，与配置的机器人 QQ ${this.botId} 不一致`:`OneBot 当前登录 QQ ${who.account}；请在「连接与环境」把它填为机器人 QQ`);this.state.account=this.botId;return who;}
  // quote: the QQ message id this text answers, shown as a reply when newer messages came in between.
@@ -46,7 +48,7 @@ export function normalizeEvent(event,config){
  if(type==='group'&&!config.groups.some(g=>g.enabled&&g.id===groupId))return null;
  if(!/^\d+$/.test(userId)||event.message_id===undefined)return null;
  const segments=Array.isArray(event.message)?event.message:[{type:'text',data:{text:String(event.raw_message||event.message||'')}}];
- let text='';const media=[];let replyId='',mentioned=false;
- for(const s of segments){if(s.type==='text')text+=String(s.data?.text||'');else if(s.type==='reply')replyId=String(s.data?.id||'');else if(s.type==='at'){mentioned ||= String(s.data?.qq)===config.botId;text+=` [@${s.data?.qq}] `;}else if(['image','record','video'].includes(s.type)){media.push({type:s.type,file:String(s.data?.file||''),url:String(s.data?.url||''),...(s.type==='image'&&(s.data?.sub_type!==undefined||s.data?.summary)?{subType:Number(s.data.sub_type)||0,summary:String(s.data.summary||'').slice(0,40)}:{})});text+=` [${s.type}] `;}else{const card=cardText(s);if(card)text+=` ${card} `;}}
- return {groupId,userId,type,externalId:String(event.message_id),text:text.slice(0,12000),name:String(event.sender?.card||event.sender?.nickname||userId).slice(0,80),nickname:String(event.sender?.nickname||'').slice(0,80),media:media.slice(0,5),replyId,mentioned,at:Number(event.time||Date.now()/1000)*1000,direction:'in'};
+ let text='';const media=[],forwards=[];let replyId='',mentioned=false;
+ for(const s of segments){if(s.type==='text')text+=String(s.data?.text||'');else if(s.type==='reply')replyId=String(s.data?.id||'');else if(s.type==='at'){mentioned ||= String(s.data?.qq)===config.botId;text+=` [@${s.data?.qq}] `;}else if(['image','record','video'].includes(s.type)){media.push({type:s.type,file:String(s.data?.file||''),url:String(s.data?.url||''),...(s.type==='image'&&(s.data?.sub_type!==undefined||s.data?.summary)?{subType:Number(s.data.sub_type)||0,summary:String(s.data.summary||'').slice(0,40)}:{})});text+=` [${s.type}] `;}else{const card=cardText(s);if(card)text+=` ${card} `;const ref=forwardRef(s);if(ref&&forwards.length<3)forwards.push(ref);}}
+ return {groupId,userId,type,externalId:String(event.message_id),text:text.slice(0,12000),name:String(event.sender?.card||event.sender?.nickname||userId).slice(0,80),nickname:String(event.sender?.nickname||'').slice(0,80),media:media.slice(0,5),...(forwards.length?{forwards}:{}),replyId,mentioned,at:Number(event.time||Date.now()/1000)*1000,direction:'in'};
 }

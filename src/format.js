@@ -1,5 +1,12 @@
+// What a link looks like: a scheme, a www. prefix, or a bare domain on a common TLD with an optional path (b23.tv/AbCd,
+// youtube.com/watch?v=…). Emails, versions like 1.5.2 and file names like node.js or readme.md do not count.
+const TLD='com|cn|net|org|tv|io|me|co|cc|gg|jp|uk|us|info|xyz|top|dev|app|site|link|ly|so|fm|gl|be';
+export const LINK=new RegExp(String.raw`(?:https?:\/\/|www\.)[^\s<>"'，。！？；、）】」]+|(?<![\w.@-])(?:[a-z0-9-]+\.)+(?:${TLD})(?![a-z0-9-])(?:\/[^\s<>"'，。！？；、）】」]*)?`,'i');
+export const hasLink=text=>LINK.test(String(text||''));
 export function splitReply(raw,o){
  let text=String(raw||'').trim();if(!text)return [];
+ // A message with a link goes out whole: splitting could cut the link or tear it from what it refers to.
+ if(hasLink(text)){while(text&&o.stripEnd.includes(text.at(-1)))text=text.slice(0,-1).trimEnd();const most=Math.min(4000,o.maxParts*o.maxPartChars);if(text.length>most)throw new Error(`回复拆分后超过 ${o.maxParts} 条的长度（含链接，不能拆分），需要缩短后重新生成`);return [text];}
  const protectedParts=[];
  text=text.replace(/```[\s\S]*?```|`[^`\n]+`|https?:\/\/[^\s<>，。！？；]+|(?:[A-Za-z]:\\|\\\\)[^\s<>，。！？；]+|(?:\/[\w.-]+){2,}|[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|\b\d+(?:\.\d+)+\b/g,m=>`\uE000${protectedParts.push(m)-1}\uE001`);
  const pieces=[];let current='';
@@ -20,4 +27,4 @@ export function parseJson(text){const raw=String(text??'').trim();
  throw new Error(`模型没有按要求返回 JSON 对象：${raw.replace(/\s+/g,' ').slice(0,80)||'（空回复）'}`);}
 
 // Chat punctuation is a preferred boundary, not a reason to discard an otherwise deliverable answer.
-export function splitChatReply(raw,o){try{return splitReply(raw,o);}catch(error){if(!/回复拆分后超过/.test(error.message))throw error;const pieces=splitReply(raw,{...o,maxParts:10000}),packed=[];let part='';for(const piece of pieces){if(part&&part.length+1+piece.length>o.maxPartChars){packed.push(part);part='';}part+=(part?' ':'')+piece;}if(part)packed.push(part);if(packed.length>o.maxParts)throw error;return packed;}}
+export function splitChatReply(raw,o){try{return splitReply(raw,o);}catch(error){if(!/回复拆分后超过/.test(error.message)||hasLink(raw))throw error;const pieces=splitReply(raw,{...o,maxParts:10000}),packed=[];let part='';for(const piece of pieces){if(part&&part.length+1+piece.length>o.maxPartChars){packed.push(part);part='';}part+=(part?' ':'')+piece;}if(part)packed.push(part);if(packed.length>o.maxParts)throw error;return packed;}}

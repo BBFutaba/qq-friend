@@ -1,7 +1,7 @@
 // Model-facing chat view, after qq-bridge's qq-model-view: short refs instead of record ids, minutes ago instead of
 // timestamps, nothing empty, long texts kept as head + tail, media as placeholders or their saved reading.
 export const CHAT_COLUMNS = ['ref', 'who', 'ago', 'text', 're'];
-const PLACEHOLDER = { image: '[图片]', video: '[视频]', record: '[语音]' };
+const PLACEHOLDER = { image: '[图片]', video: '[视频]', record: '[语音]' }, LINK_SITES = { bilibili: 'B站', x: 'X', youtube: 'YouTube' };
 export function messageText(m, { botId = '', limit = 200, tail = 120 } = {}) {
   let t = String(m.text || '').replace(/\[(image|video|record)\]/g, (_, k) => PLACEHOLDER[k]);
   if (botId) t = t.split(`[@${botId}]`).join('@你');
@@ -10,6 +10,10 @@ export function messageText(m, { botId = '', limit = 200, tail = 120 } = {}) {
   const hint = m.media?.find(x => x.type === 'image' && x.summary)?.summary;
   if (m.mediaSummary) t = t.replace(/\[(图片|视频)\]/, '') + ` 〔画面：${m.mediaSummary}〕`;
   else if (hint) t = t.replace('[图片]', hint.startsWith('[') ? hint : `[${hint}]`);
+  // A fetched chat record replaces its placeholder; one that hit the NSFW list shows only that it was skipped.
+  if (m.forward) { const f = m.forward.nsfw ? '[聊天记录：不适内容，已跳过]' : `[聊天记录 ${m.forward.count} 条${m.forward.preview ? '（预览）' : ''}：${(m.forward.lines || []).join(' / ')}]`; t = /\[聊天记录[^\]]*\]/.test(t) ? t.replace(/\[聊天记录[^\]]*\]/, () => f) : `${t} ${f}`; }
+  // Notes Wander wrote about Bilibili/X/YouTube links; one that hit the NSFW list only says it was skipped.
+  for (const n of m.linkNotes || []) t += n.nsfw ? ' 〔链接：不适内容，已跳过〕' : ` 〔链接 ${LINK_SITES[n.site] || '网页'}「${n.title}」${n.author ? ' ' + n.author : ''}：${n.note}〕`;
   t = t.replace(/\s+/g, ' ').trim();
   if (t.length > limit + tail + 1) t = `${t.slice(0, limit)}…${t.slice(-tail)}`;
   return t || '[空消息]';

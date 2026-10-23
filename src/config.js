@@ -25,7 +25,8 @@ export const DEFAULTS = {
   wake: { ...WAKE_DEFAULTS },
   output: { splitOn: '，。！？；,.!?;\n', stripEnd: '，。；,.;;', maxParts: 5, maxPartChars: 220, delayMs: 1600 },
   proactive: { enabled: false, intervalMinutes: 120, maxDaily: 3, approvalMinutes: 60, quietStart: 23, quietEnd: 8, timezone: localZone() },
-  media: { images: true, audio: true, video: true },
+  // forwards: read merged chat records; nsfwReply: the canned answer to one that hits the NSFW list ('' = stay silent).
+  media: { images: true, audio: true, video: true, forwards: true, links: true, nsfwReply: '不爱看这种', nsfwWords: [] },
   browser: { enabled: false, maxItems: 20 },
   environment: { arbitraryExecution: false },
 };
@@ -48,7 +49,8 @@ export function assertConfig(c) {
   for(const p of Object.values(c.roleModels)) if(!p||!['codex','claude','deepseek'].includes(p.provider)||typeof p.model!=='string'||typeof p.effort!=='string')throw new Error('后台模型配置无效');
   const bounds = [[c.participation.debounceMs,500,30000],[c.participation.cooldownSeconds,0,3600],[c.participation.maxContextChars,2000,50000],[c.participation.maxContextMessages,5,150],[c.participation.maxReplyAgeSeconds,10,600],[c.participation.dailyCalls===-1?1:c.participation.dailyCalls,1,10000],[c.participation.hourlyReplies,1,100],[c.output.maxParts,1,10],[c.output.maxPartChars,20,1000],[c.output.delayMs,0,10000],[c.proactive.intervalMinutes,15,1440],[c.proactive.maxDaily,1,30],[c.proactive.approvalMinutes,1,1440],[c.proactive.quietStart,0,23],[c.proactive.quietEnd,0,23],[c.browser.maxItems,1,50]];
   if(bounds.some(([v,a,b])=>!Number.isInteger(v)||v<a||v>b))throw new Error('频率、预算或输出长度超出允许范围');
-  for(const v of [c.paused,c.debug,c.proactive.enabled,c.browser.enabled,c.media.images,c.media.audio,c.media.video,...c.groups.map(g=>g.enabled)]) if(typeof v!=='boolean')throw new Error('开关必须为布尔值');
+  for(const v of [c.paused,c.debug,c.proactive.enabled,c.browser.enabled,c.media.images,c.media.audio,c.media.video,c.media.forwards??true,c.media.links??true,...c.groups.map(g=>g.enabled)]) if(typeof v!=='boolean')throw new Error('开关必须为布尔值');
+  const nsfw={...DEFAULTS.media,...c.media};if(typeof nsfw.nsfwReply!=='string'||nsfw.nsfwReply.length>40||/[\r\n]/.test(nsfw.nsfwReply)||!Array.isArray(nsfw.nsfwWords)||nsfw.nsfwWords.length>100||nsfw.nsfwWords.some(w=>typeof w!=='string'||!w.trim()||w.length>20))throw new Error('不适内容设置无效：回复最多 40 字，屏蔽词最多 100 个、每个 1–20 字');
   if(typeof c.output.splitOn!=='string'||typeof c.output.stripEnd!=='string'||c.output.splitOn.length>50||c.output.stripEnd.length>50)throw new Error('标点设置无效');
   new Intl.DateTimeFormat('en',{timeZone:c.proactive.timezone});
   if(c.environment.arbitraryExecution!==false)throw new Error('任意代码执行尚未开放');
@@ -62,4 +64,4 @@ export function ensureSecrets() {
   return JSON.parse(readFileSync(file,'utf8'));
 }
 export function saveSecrets(v){writeFileSync(join(DATA,'connections.json'),JSON.stringify(v,null,2));}
-export function publicConnections(s){return {claudeApi:publicApiConnection(s.claudeApi),httpUrl:s.httpUrl,wsUrl:s.wsUrl,tokenConfigured:!!s.token,wsTokenConfigured:!!s.wsToken,claudeSdk:s.claudeSdk,deepseekCommand:s.deepseekCommand};}
+export function publicConnections(s){return {claudeApi:publicApiConnection(s.claudeApi),httpUrl:s.httpUrl,wsUrl:s.wsUrl,tokenConfigured:!!s.token,wsTokenConfigured:!!s.wsToken,claudeSdk:s.claudeSdk,deepseekCommand:s.deepseekCommand,wanderUrl:s.wanderUrl||'',wanderTokenConfigured:!!s.wanderToken};}
