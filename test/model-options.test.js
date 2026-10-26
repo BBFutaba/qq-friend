@@ -9,12 +9,21 @@ import { DEFAULTS, DEFAULT_OBSERVER, assertConfig } from '../src/config.js';
 import { backgroundSpecs, saveBackgroundSpecs } from '../public/model-options.js';
 
 test('background roles preserve legacy choices and save independent models across all providers',()=>{
- const c=structuredClone(CONFIG);c.roles={observer:'fable',memory:'fable',auditor:'gpt',discovery:'gpt'};
+ const c=structuredClone(CONFIG);c.roles={observer:'fable',memory:'fable',auditor:'gpt',discovery:'gpt',perception:'perception'};
  const original=structuredClone(c),specs=backgroundSpecs(c);specs.observer={...DEFAULT_OBSERVER};specs.memory={provider:'deepseek',model:'native-model-id',effort:'off'};specs.discovery={provider:'codex',model:'gpt-6-luna',effort:'high'};
  saveBackgroundSpecs(c,specs);assert.doesNotThrow(()=>assertConfig(c));assert.deepEqual(backgroundSpecs(c),specs);assert.deepEqual(c.roleModels.fable,original.roleModels.fable);assert.deepEqual(c.personas,original.personas);assert.equal(c.paused,true);
  specs.observer.effort='high';assert.equal(backgroundSpecs(c).observer.effort,'low');assert.equal(backgroundSpecs(c).auditor.effort,'medium');
  c.roleModels[c.roles.memory].provider='arbitrary';assert.throws(()=>assertConfig(c),/后台模型/);
 });
+test('画面识别 is its own role: older configs get the model images used before, and it must be able to see',()=>{
+ const s=new Store(':memory:'),legacy=(observer)=>{s.update('config',{roles:{observer:'role:observer',memory:'gpt',auditor:'gpt',discovery:'gpt'},roleModels:{...structuredClone(DEFAULTS.roleModels),'role:observer':observer}});return s.config();};
+ try{
+  assert.deepEqual(backgroundSpecs(legacy({provider:'deepseek',model:'flash',effort:'off'})).perception,DEFAULT_OBSERVER,'text-only observer: images went to GPT 6.1 Sol low');
+  assert.deepEqual(backgroundSpecs(legacy({provider:'codex',model:'gpt-6-luna',effort:'medium'})).perception,{provider:'codex',model:'gpt-6-luna',effort:'medium'},'otherwise the observer saw them');
+  const c=s.config();c.roleModels['role:perception']={provider:'claude',model:'opus',effort:'low',transport:'native',apiPreset:'default'};c.roles.perception='role:perception';s.saveConfig(c);c.roleModels['role:observer']={provider:'deepseek',model:'flash',effort:'off'};s.saveConfig(c);
+  assert.equal(s.config().roleModels[s.config().roles.perception].provider,'claude','a saved choice is kept');
+  const bad=structuredClone(CONFIG);bad.roleModels.perception={provider:'deepseek',model:'flash',effort:'off'};assert.throws(()=>assertConfig(bad),/画面识别需要能看图的模型/);
+ }finally{s.close();}});
 test('fresh observer uses GPT 6.1 Sol low without lowering other roles',()=>{assert.deepEqual(backgroundSpecs(DEFAULTS).observer,DEFAULT_OBSERVER);assert.equal(backgroundSpecs(DEFAULTS).memory.effort,'medium');});
 
 const catalog={models:[{id:'full',name:'Full',efforts:['low','medium','high','ultra']},{id:'small',name:'Small',efforts:['low','medium']},{id:'fixed',name:'Fixed',efforts:[]}]};

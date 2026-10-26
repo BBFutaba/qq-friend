@@ -54,7 +54,7 @@ export class MediaLibrary {
  sent(hash){const row=this.get(hash);if(row)this.store.update(row.id,{sentCount:(row.sentCount||0)+1,lastSentAt:Date.now()});}
  // Keep stickers; drop the bytes of the least recently seen other images beyond the cap (their analysis stays).
  evict(){const stored=this.store.list('media',m=>m.stored,10000);let total=stored.reduce((n,m)=>n+m.size,0),count=stored.length;if(count<=LIMITS.files&&total<=LIMITS.bytes)return;
-  for(const m of stored.filter(m=>!m.sticker&&!m.repertoire).sort((a,b)=>a.lastSeen-b.lastSeen)){if(count<=LIMITS.files&&total<=LIMITS.bytes)break;try{unlinkSync(this.path(m.hash,m.mime));}catch{}this.store.update(m.id,{stored:false});count--;total-=m.size;}}
+  for(const m of stored.filter(m=>!m.sticker&&!m.repertoire&&m.source!=='owner').sort((a,b)=>a.lastSeen-b.lastSeen)){if(count<=LIMITS.files&&total<=LIMITS.bytes)break;try{unlinkSync(this.path(m.hash,m.mime));}catch{}this.store.update(m.id,{stored:false});count--;total-=m.size;}}
 }
 // Short codes keep hashes out of the prompt; only codes from this menu are accepted back.
 export function stickerMenu(entries,limit=30){const menu=entries.slice().sort((a,b)=>(b.sentCount||0)-(a.sentCount||0)||a.repertoire.addedAt-b.repertoire.addedAt).slice(0,limit).map((m,i)=>({id:`s${i+1}`,hash:m.hash,name:m.repertoire.name,usage:m.repertoire.usage,meaning:(m.description||'').slice(0,200)}));

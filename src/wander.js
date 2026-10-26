@@ -39,6 +39,20 @@ export function videoLink(raw) {
   if (/(^|\.)bilibili\.com$/.test(h)) return /\/(BV[0-9A-Za-z]{10}|av\d+)(\/|$)/i.test(p);
   return h === 'youtu.be' || /(^|\.)youtube\.com$/.test(h) && (p === '/watch' || /^\/(shorts|live)\//.test(p));
 }
+// Meme research: Wander looks the term up (read-only web search and Bilibili) and answers with an entry for the owner to review.
+const CONFIDENCE = ['high', 'medium', 'low'];
+export async function researchMeme(term, context, { base = WANDER_URL, token, signal, fetcher = fetch } = {}) {
+  if (!token) throw new Error('Wander 令牌尚未配置');
+  const response = await fetcher(`${wanderBase(base)}/api/research-meme`, { method: 'POST', redirect: 'error', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ term, context: (context || []).slice(0, 8).map(l => String(l).slice(0, 160)) }), signal: AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]) });
+  const text = await response.text();
+  if (text.length > 65536) throw new Error('Wander 响应过大');
+  let j; try { j = JSON.parse(text); } catch { throw new Error(`Wander HTTP ${response.status}`); }
+  if (j?.ok !== true) throw new Error(`Wander 未查到：${clean(j?.error || `HTTP ${response.status}`, 60)}`);
+  const found = j.found === true, sources = found && Array.isArray(j.sources) ? j.sources.slice(0, 4).map(s => ({ title: note(s?.title, 80), url: cleanUrl(s?.url) })).filter(s => s.url.startsWith('https://')) : [];
+  const result = { found, meaning: note(j.meaning, 200), origin: note(j.origin, 200), usage: note(j.usage, 200), example: note(j.example, 120), aliases: Array.isArray(j.aliases) ? j.aliases.slice(0, 5).map(a => note(a, 20)).filter(Boolean) : [], sources, confidence: found && CONFIDENCE.includes(j.confidence) ? j.confidence : 'low', nsfw: j.nsfw === true };
+  if (!result.meaning) throw new Error('Wander 没有返回释义');
+  return result;
+}
 export async function readLink(url, { base = WANDER_URL, token, signal, fetcher = fetch } = {}) {
   if (!token) throw new Error('Wander 令牌尚未配置');
   const response = await fetcher(`${wanderBase(base)}/api/read-link`, { method: 'POST', redirect: 'error', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ url }), signal: AbortSignal.any([AbortSignal.timeout(30000), ...(signal ? [signal] : [])]) });

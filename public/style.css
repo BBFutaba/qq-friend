@@ -14,3 +14,4 @@
 @media(max-width:720px){.grid.four{grid-template-columns:1fr 1fr}.media-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}.media-editor{grid-template-columns:1fr}.rep-enabled{margin-top:10px}}
 
 .api-request{white-space:pre-wrap;overflow-wrap:anywhere;max-height:600px;overflow:auto;font-size:13px}
+.visual-thumbs{gap:6px;margin:6px 0}.visual-thumbs img{width:56px;height:56px;object-fit:cover;border-radius:6px;background:#f3f5f0}

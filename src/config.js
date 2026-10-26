@@ -18,8 +18,9 @@ export const DEFAULTS = {
     claude: { name: 'Claude', provider: 'claude', model: 'claude-fable-5-1', effort: 'medium', prompt: '' },
     deepseek: { name: 'DeepSeek', provider: 'deepseek', model: '', effort: '', prompt: '' }
   },
-  roles: { observer: 'observer', memory: 'gpt', auditor: 'gpt', discovery: 'gpt' },
-  roleModels: { observer: { ...DEFAULT_OBSERVER }, gpt: { provider: 'codex', model: 'gpt-6.1-sol', effort: 'medium' }, fable: { provider: 'claude', model: 'claude-fable-5-1', effort: 'medium' } },
+  // perception (画面识别) describes images and video frames before the observer sees them, so it needs a model that can see.
+  roles: { observer: 'observer', memory: 'gpt', auditor: 'gpt', discovery: 'gpt', perception: 'perception' },
+  roleModels: { observer: { ...DEFAULT_OBSERVER }, perception: { ...DEFAULT_OBSERVER }, gpt: { provider: 'codex', model: 'gpt-6.1-sol', effort: 'medium' }, fable: { provider: 'claude', model: 'claude-fable-5-1', effort: 'medium' } },
   participation: { debounceMs: 3500, cooldownSeconds: 25, maxContextChars: 16000, maxContextMessages: 40, maxReplyAgeSeconds: 90, dailyCalls: 160, hourlyReplies: 20 },
   memory: { ...MEMORY_DEFAULTS },
   wake: { ...WAKE_DEFAULTS },
@@ -27,6 +28,8 @@ export const DEFAULTS = {
   proactive: { enabled: false, intervalMinutes: 120, maxDaily: 3, approvalMinutes: 60, quietStart: 23, quietEnd: 8, timezone: localZone() },
   // forwards: read merged chat records; nsfwReply: the canned answer to one that hits the NSFW list ('' = stay silent).
   media: { images: true, audio: true, video: true, forwards: true, links: true, nsfwReply: '不爱看这种', nsfwWords: [] },
+  // 梗词典: research a flagged term after minMentions flags (or two people), at most researchDaily Wander researches a day.
+  memes: { enabled: true, minMentions: 2, researchDaily: 10 },
   browser: { enabled: false, maxItems: 20 },
   environment: { arbitraryExecution: false },
 };
@@ -45,11 +48,13 @@ export function assertConfig(c) {
   if (!c.paused && !identityReady(c)) throw new Error('请先在「连接与环境」填写机器人 QQ、审批 QQ，并启用至少一个群');
   for (const name of ['gpt', 'claude', 'deepseek']) { const p=c.personas[name]; if (!p || typeof p.name!=='string'||!p.name.trim()||p.name.length>40||typeof p.prompt!=='string' || p.prompt.length>12000 || (p.brief!==undefined&&(typeof p.brief!=='string'||p.brief.length>400)) || p.provider!==({gpt:'codex',claude:'claude',deepseek:'deepseek'})[name] || typeof p.model!=='string'||typeof p.effort!=='string') throw new Error('人格配置无效'); }
   if (Object.values(c.roles).some(x => !c.roleModels[x])) throw new Error('后台角色模型无效');
-  if(['observer','memory','auditor','discovery'].some(k=>!c.roleModels[c.roles[k]]))throw new Error('后台角色缺失');
+  if(['observer','memory','auditor','discovery','perception'].some(k=>!c.roleModels[c.roles[k]]))throw new Error('后台角色缺失');
+  if(c.roleModels[c.roles.perception].provider==='deepseek')throw new Error('画面识别需要能看图的模型（GPT / Codex 或 Claude），DeepSeek 只能读文字');
   for(const p of Object.values(c.roleModels)) if(!p||!['codex','claude','deepseek'].includes(p.provider)||typeof p.model!=='string'||typeof p.effort!=='string')throw new Error('后台模型配置无效');
   const bounds = [[c.participation.debounceMs,500,30000],[c.participation.cooldownSeconds,0,3600],[c.participation.maxContextChars,2000,50000],[c.participation.maxContextMessages,5,150],[c.participation.maxReplyAgeSeconds,10,600],[c.participation.dailyCalls===-1?1:c.participation.dailyCalls,1,10000],[c.participation.hourlyReplies,1,100],[c.output.maxParts,1,10],[c.output.maxPartChars,20,1000],[c.output.delayMs,0,10000],[c.proactive.intervalMinutes,15,1440],[c.proactive.maxDaily,1,30],[c.proactive.approvalMinutes,1,1440],[c.proactive.quietStart,0,23],[c.proactive.quietEnd,0,23],[c.browser.maxItems,1,50]];
   if(bounds.some(([v,a,b])=>!Number.isInteger(v)||v<a||v>b))throw new Error('频率、预算或输出长度超出允许范围');
   for(const v of [c.paused,c.debug,c.proactive.enabled,c.browser.enabled,c.media.images,c.media.audio,c.media.video,c.media.forwards??true,c.media.links??true,...c.groups.map(g=>g.enabled)]) if(typeof v!=='boolean')throw new Error('开关必须为布尔值');
+  const memes={...DEFAULTS.memes,...c.memes};if(typeof memes.enabled!=='boolean'||!Number.isInteger(memes.minMentions)||memes.minMentions<1||memes.minMentions>10||!Number.isInteger(memes.researchDaily)||memes.researchDaily<0||memes.researchDaily>100)throw new Error('梗词典设置无效');
   const nsfw={...DEFAULTS.media,...c.media};if(typeof nsfw.nsfwReply!=='string'||nsfw.nsfwReply.length>40||/[\r\n]/.test(nsfw.nsfwReply)||!Array.isArray(nsfw.nsfwWords)||nsfw.nsfwWords.length>100||nsfw.nsfwWords.some(w=>typeof w!=='string'||!w.trim()||w.length>20))throw new Error('不适内容设置无效：回复最多 40 字，屏蔽词最多 100 个、每个 1–20 字');
   if(typeof c.output.splitOn!=='string'||typeof c.output.stripEnd!=='string'||c.output.splitOn.length>50||c.output.stripEnd.length>50)throw new Error('标点设置无效');
   new Intl.DateTimeFormat('en',{timeZone:c.proactive.timezone});

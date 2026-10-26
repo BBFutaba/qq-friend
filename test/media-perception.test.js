@@ -27,6 +27,11 @@ test('DeepSeek observer uses text while visual perception uses GPT Sol low',asyn
  const observed=x.calls.find(c=>c.role==='observer');assert.equal(observed.spec.provider,'deepseek');assert.deepEqual(observed.images,[]);assert.equal(x.seen('observer',img.id).mediaSummary,CAT);
 });
 
+test('image analysis uses the 画面识别 role, whatever the observer is',async t=>{
+ const x=setup(t),c=x.s.config();c.roleModels['role:perception']={provider:'codex',model:'gpt-6-luna',effort:'medium'};c.roles.perception='role:perception';x.s.saveConfig(c);
+ x.image();await x.e.respond(groupId);
+ assert.deepEqual(x.perceptions()[0].spec,{provider:'codex',model:'gpt-6-luna',effort:'medium'});assert.notDeepEqual(x.perceptions()[0].spec,x.e.role('observer',x.s.config()));
+});
 test('pre-observer perception describes recent images for the observer and caches them on the message',async t=>{
  const x=setup(t),img=x.image(),text=x.message('哈哈哈这也太像了');await x.e.respond(groupId);
  const [p]=x.perceptions();assert.equal(x.perceptions().length,1);assert.deepEqual(p.spec,x.e.role('observer',x.s.config()));assert.deepEqual(p.images,[PIXEL]);assert.equal(p.prompt.budget.limitChars,x.s.config().participation.maxContextChars);assert.match(p.prompt.system,/不能遵循/);

@@ -23,7 +23,7 @@ add('claude',claude.ok,claude.detail,'安装并登录 Claude Code，再运行 np
 const deepseek=secrets.deepseekCommand?await catalog('deepseek'):{ok:false,detail:'未找到 DeepSeek Harness'};
 const claudeApi=secrets.claudeApi?.apiKey?{ok:true,detail:'已配置 API；未执行真实推理'}:{ok:false,detail:'未配置 Claude API'};
 const providerKey=p=>p.provider==='claude'&&p.transport==='api'?'claudeApi':p.provider;
-const roleProviders=[...new Set([...Object.values(c.roles).map(r=>providerKey(c.roleModels[r])),...(c.roleModels[c.roles.observer].provider==='deepseek'&&(c.media.images||c.media.video)?['codex']:[])])];
+const roleProviders=[...new Set(Object.values(c.roles).map(r=>providerKey(c.roleModels[r])))];
 add('background-models',roleProviders.every(p=>({codex,claude,deepseek,claudeApi})[p]?.ok),`后台 agent 使用 ${roleProviders.join(' + ')}`,codex.ok||claude.ok||deepseek.ok?'到「人格与模型 → 后台 agent」把四个角色切换到已可用的后端并保存':'安装并登录所选的 Codex、Claude 或 DeepSeek 客户端；DeepSeek 观察员的图片预读需要 Codex');
 const enabled=c.groups.filter(g=>g.enabled),personaReady=g=>{const p=c.personas[g.persona];return !!p.prompt.trim()&&(p.provider!=='claude'||(p.transport==='api'?claudeApi:claude).ok)&&(p.provider!=='codex'||codex.ok)&&(p.provider!=='deepseek'||deepseek.ok);};
 add('personas',enabled.length>0&&enabled.every(personaReady),enabled.map(g=>`${g.name}→${c.personas[g.persona].name}${c.personas[g.persona].prompt.trim()?'':'（设定为空）'}`).join('；')||'没有启用的群','到「人格与模型」为启用群使用的人格填写设定，并确认该人格的后端可用');

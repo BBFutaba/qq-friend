@@ -43,8 +43,10 @@ export class ClaudeApi {
  async complete(request,signal,hooks={}){const controller=new AbortController();this.active.add(controller);const combined=AbortSignal.any([controller.signal,AbortSignal.timeout(75000),...(signal?[signal]:[])]),body=structuredClone(request.body),baseMessages=body.messages.length,toolLimit=request.toolLimitChars??request.limitChars??16000;let usage=null,rounds=0,toolCount=0,unknownUsage=false;const events=[];
   // Tool rounds re-send the whole conversation seconds apart: a moving 5-minute breakpoint on the newest block lets each
   // round read the previous one from cache. Only the latest stays marked (the API allows four breakpoints).
-  let tail=null,noToolRetry=false,unknownRounds=0;
-  try{for(;;){combined.throwIfAborted();if(request.cacheTail){if(tail)delete tail.cache_control;tail=textBlocks(body.messages.at(-1)).at(-1);tail.cache_control={type:'ephemeral'};}const chars=apiTextChars(body);if(chars>toolLimit)throw Error('工具查询后的输入超过预算');if(rounds>=12)throw Error('工具查询轮数过多，结果已丢弃');await hooks.beforeRound?.(rounds);const r=await this.request(request.url,body,combined);rounds++;const next=tokensFrom(r.usage);if(!next)unknownUsage=true;else if(!usage)usage=next;else for(const k of Object.keys(usage))usage[k]=usage[k]==null||next[k]==null?null:usage[k]+next[k];
+  let tail=null,noToolRetry=false,unknownRounds=0,rebound=false;
+  try{for(;;){combined.throwIfAborted();if(request.cacheTail){if(tail)delete tail.cache_control;tail=textBlocks(body.messages.at(-1)).at(-1);tail.cache_control={type:'ephemeral'};}const chars=apiTextChars(body);if(chars>toolLimit)throw Error('工具查询后的输入超过预算');if(rounds>=12)throw Error('工具查询轮数过多，结果已丢弃');await hooks.beforeRound?.(rounds);
+   // Should a thinking block still be refused as bound to another conversation, drop them all and send the round once more.
+   let r;try{r=await this.request(request.url,body,combined);}catch(e){if(rebound||!/bound to a different conversation/.test(e.message)||!stripThinking(body))throw e;rebound=true;r=await this.request(request.url,body,combined);}rounds++;const next=tokensFrom(r.usage);if(!next)unknownUsage=true;else if(!usage)usage=next;else for(const k of Object.keys(usage))usage[k]=usage[k]==null||next[k]==null?null:usage[k]+next[k];
    const anthropic=request.protocol==='anthropic',choice=r.choices?.[0],calls=anthropic?(r.content||[]).filter(b=>b.type==='tool_use'):(choice?.message?.tool_calls||[]);
    const stop=anthropic?r.stop_reason:choice?.finish_reason,text=anthropic?(r.content||[]).filter(b=>b.type==='text').map(b=>b.text).join(''):choice?.message?.content;
    // Claude Opus 5.5 always thinks, and now and then ends a turn with only (empty) thinking, or stops for a tool it never calls.
@@ -83,7 +85,11 @@ const textBlocks=m=>{if(typeof m.content==='string')m.content=[{type:'text',text
 export function apiTextChars(body){return JSON.stringify(body,(key,value)=>key==='image_url'||key==='source'&&value?.type==='base64'?{image:'omitted-from-text-budget'}:value).length;}
 
 
-export function compactToolHistory(body,start,limit){if(apiTextChars(body)<=limit)return;
+// A thinking block is bound to everything sent before it, so once earlier history is edited every thinking block has to go
+// (each turn keeps its text and tool calls: the API's documented recovery). Returns how many were removed.
+export function stripThinking(body){let removed=0;for(const m of body.messages)if(m.role==='assistant'&&Array.isArray(m.content)){const kept=m.content.filter(b=>b?.type!=='thinking'&&b?.type!=='redacted_thinking');removed+=m.content.length-kept.length;m.content=kept;}return removed;}
+// Shortening old tool results and dropping old rounds edit the history, so the thinking blocks go with them.
+export function compactToolHistory(body,start,limit){if(apiTextChars(body)<=limit)return;stripThinking(body);
  for(const m of body.messages.slice(start)){if(m.role==='tool')m.content=shortToolResult(m.content);if(Array.isArray(m.content))for(const b of m.content)if(b.type==='tool_result')b.content=shortToolResult(b.content);}
  while(apiTextChars(body)>limit){const next=body.messages.findIndex((m,i)=>i>start&&m.role==='assistant');if(next<0)break;body.messages.splice(start,next-start);}
  if(apiTextChars(body)>limit)throw Error('单次工具请求超出独立查询上下文预算');

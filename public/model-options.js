@@ -1,5 +1,7 @@
 // Selection rules shared by all persona and background-agent dropdowns.
-export const backgroundRoles = {observer:'观察群聊',memory:'记忆整理',auditor:'主动话题审核',discovery:'发现新话题'};
+export const backgroundRoles = {observer:'观察群聊',perception:'画面识别',memory:'记忆整理',auditor:'主动话题审核',discovery:'发现新话题'};
+// Roles that have to see images: DeepSeek reads text only, so it is not offered for them.
+export const seeingRoles = new Set(['perception']);
 export const providerNames = {codex:'GPT / Codex',claude:'Claude',deepseek:'DeepSeek'};
 export function backgroundSpecs(config){return Object.fromEntries(Object.keys(backgroundRoles).map(role=>[role,{...config.roleModels[config.roles[role]]}]));}
 export function saveBackgroundSpecs(config,specs){for(const role of Object.keys(backgroundRoles)){const {provider,model,effort,transport,apiPreset}=specs[role],key=`role:${role}`;config.roles[role]=key;config.roleModels[key]={provider,model,effort,...(provider==='claude'?{transport:transport||'native',apiPreset:apiPreset||'default'}:{})};}return config;}

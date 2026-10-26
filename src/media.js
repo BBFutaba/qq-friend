@@ -10,6 +10,9 @@ export class Media {
  // library: the content-addressed image library (src/stickers.js); fetch/decode are injectable for tests.
  constructor(onebot,library=null,{fetch=fetchMedia,decode=decodeMedia}={}){this.onebot=onebot;this.library=library;this.fetch=fetch;this.decode=decode;}
  ready(){return mediaReady();}
+ // The pixels of a stored library image, decoded like a fresh one (the 画面图鉴 cataloguer looks at the owner's annotated images).
+ async pixels(hash,signal){const b=this.library?.bytes(hash);if(!b)return [];const dir=join(ROOT,'workspace','media');mkdirSync(dir,{recursive:true});const file=join(dir,randomUUID()+'.media');
+  try{writeFileSync(file,b.data);return (await this.decode('image',file,signal)).images;}finally{try{unlinkSync(file);}catch{}}}
  async download(m,signal){let url=m.url;if(!url){const r=await this.onebot.action(m.type==='record'?'get_record':m.type==='video'?'get_video':'get_image',{file:m.file,...(m.type==='record'?{out_format:'wav'}:{})});url=r?.url;}
   if(!url)throw new Error('桥接端未返回可下载 URL；不读取工作目录之外的文件');return this.fetch(url,signal,LIMIT[m.type]);}
  // Resolves one image segment to its library record. A known hash, or a QQ file name already verified as the image's

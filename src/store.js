@@ -2,9 +2,13 @@ import { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { DEFAULTS, assertConfig } from './config.js';
+import { DEFAULTS, DEFAULT_OBSERVER, assertConfig } from './config.js';
 import { memoryOptions, memoryFields, protectedMemory, sameMemoryScope, normalizedFact, expiredMemory, crossGroupMemory } from './memory-policy.js';
 import { wakeOptions } from './wake.js';
+// Configs saved before 画面识别 was its own role get it with the model images went to then: the observer's, or gpt-6.1-sol low
+// when the observer is text-only DeepSeek.
+const seeingRole=c=>{if(c.roles?.perception&&c.roleModels?.[c.roles.perception])return {};const observer=c.roleModels?.[c.roles?.observer];
+ return {roles:{...c.roles,perception:'role:perception'},roleModels:{...c.roleModels,'role:perception':observer&&observer.provider!=='deepseek'?{...observer}:{...DEFAULT_OBSERVER}}};};
 export class Store {
  constructor(file){
   if(file!==':memory:')mkdirSync(dirname(file),{recursive:true});
@@ -33,7 +37,7 @@ export class Store {
  remove(id){this.db.prepare('DELETE FROM records WHERE id=?').run(id);}
  seen(key){return !this.db.prepare('INSERT OR IGNORE INTO dedup VALUES(?,?)').run(key,Date.now()).changes;}
  // Sections added after an install was created (memory, wake) are filled in from their defaults.
- config(){const {id,kind,version,updated,...c}=this.get('config');return {...c,media:{...DEFAULTS.media,...c.media},memory:memoryOptions(c),wake:wakeOptions(c)};}
+ config(){const {id,kind,version,updated,...c}=this.get('config');return {...c,...seeingRole(c),media:{...DEFAULTS.media,...c.media},memes:{...DEFAULTS.memes,...c.memes},memory:memoryOptions(c),wake:wakeOptions(c)};}
  saveConfig(c){const old=this.config();assertConfig(c);const next={...c,revision:old.revision+1};this.update('config',next);this.log('config','后台更新配置',{revision:next.revision});return next;}
  log(type,message,details={}){return this.create('log',{type,message,details});}
  memory(input,actor='owner'){

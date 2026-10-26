@@ -9,10 +9,10 @@ export function replyPace(text, direct, random = Math.random) {
   if (direct && ASKS.test(String(text || ''))) return PACES.full;
   const r = random();return r < PACE_WEIGHTS.react ? PACES.react : r < PACE_WEIGHTS.react + PACE_WEIGHTS.short ? PACES.short : PACES.full;
 }
-// The group's clock, not this computer's: QQ groups live on China time even when the host runs elsewhere (this one's
-// activity is 0% between 02:00 and 07:00 Shanghai time). QQ_FRIEND_TZ overrides it for other deployments.
-export const TIME_ZONE = process.env.QQ_FRIEND_TZ || 'Asia/Shanghai';
-export function localNow(d = new Date(), timeZone = TIME_ZONE) {
+// This computer's clock and time zone, read on every call, so the model's "now" is the owner's own local time (a changed
+// system time zone applies at once). QQ_FRIEND_TZ overrides the zone only when it is set.
+export const systemZone = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch { return 'UTC'; } };
+export function localNow(d = new Date(), timeZone = process.env.QQ_FRIEND_TZ || systemZone()) {
   const p = Object.fromEntries(new Intl.DateTimeFormat('zh-CN', { timeZone, month: 'numeric', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(d).map(x => [x.type, x.value]));
   return `${p.month}月${p.day}日 ${p.weekday} ${p.hour}:${p.minute}`;
 }
