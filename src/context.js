@@ -26,13 +26,17 @@ export function participants(messages, members) {
 }
 export function rankMemories(rows, messages, members, groupId, persona, c) {
   const ids = participants(messages, members), query = terms(messages.slice(-8).map(m => m.text).join('\n'));
+  let archived = 0;
   return rows.filter(m => visibleMemory(m, groupId, persona, c)).map(m => {
     const lexical = relevance(`${m.key || ''} ${m.content}`, query);
+    // An archived memory is left out unless the chat clearly touches it: three shared words or character pairs, and no
+    // bonus for its person merely speaking.
+    if (m.archived) { const hits = [...terms(`${m.key || ''} ${m.content}`)].filter(t => query.has(t)).length; return { m, score: lexical * 8, relevant: hits >= 3, archived: true }; }
     const person = m.userId && ids.has(m.userId), group = !m.userId && categoryOf(m) !== 'topic';
     // A topic needs an actual lexical match; a repeated speaker alone is not the same topic.
     return { m, score: lexical * 8 + (person ? 3 : 0) + (group ? .15 : 0), relevant: categoryOf(m) === 'topic' ? lexical > 0 : lexical > 0 || person || group };
   }).filter(x => x.relevant).sort((a, b) => b.score - a.score || b.m.updated - a.m.updated || a.m.id.localeCompare(b.m.id))
-    .slice(0, memoryOptions(c).maxCandidates).map(x => x.m);
+    .filter(x => !x.archived || ++archived <= 3).slice(0, memoryOptions(c).maxCandidates).map(x => x.m);
 }
 export function compactMemories(memories, withIds = false) {
   const columns = [...(withIds ? ['id', 'version'] : []), 'qq', 'type', 'scope', 'fact'];

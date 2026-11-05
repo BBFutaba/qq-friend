@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DEFAULTS, DEFAULT_OBSERVER, assertConfig } from './config.js';
+import { helperOptions } from './helper.js';
 import { memoryOptions, memoryFields, protectedMemory, sameMemoryScope, normalizedFact, expiredMemory, crossGroupMemory } from './memory-policy.js';
 import { wakeOptions } from './wake.js';
 // Configs saved before 画面识别 was its own role get it with the model images went to then: the observer's, or gpt-6.1-sol low
@@ -37,7 +38,7 @@ export class Store {
  remove(id){this.db.prepare('DELETE FROM records WHERE id=?').run(id);}
  seen(key){return !this.db.prepare('INSERT OR IGNORE INTO dedup VALUES(?,?)').run(key,Date.now()).changes;}
  // Sections added after an install was created (memory, wake) are filled in from their defaults.
- config(){const {id,kind,version,updated,...c}=this.get('config');return {...c,...seeingRole(c),media:{...DEFAULTS.media,...c.media},memes:{...DEFAULTS.memes,...c.memes},memory:memoryOptions(c),wake:wakeOptions(c)};}
+ config(){const {id,kind,version,updated,...c}=this.get('config');return {...c,...seeingRole(c),participation:{...DEFAULTS.participation,...c.participation},media:{...DEFAULTS.media,...c.media},memes:{...DEFAULTS.memes,...c.memes},helper:helperOptions(c),memory:memoryOptions(c),wake:wakeOptions(c)};}
  saveConfig(c){const old=this.config();assertConfig(c);const next={...c,revision:old.revision+1};this.update('config',next);this.log('config','后台更新配置',{revision:next.revision});return next;}
  log(type,message,details={}){return this.create('log',{type,message,details});}
  memory(input,actor='owner'){
@@ -67,6 +68,10 @@ export class Store {
   const next=this.update(id,{content:patch.content.trim(),status:patch.status,...fields,protected:changed||patch.protected===true||(patch.protected===undefined&&protectedMemory(old)),actor:'owner'},version);
   this.create('revision',{targetId:id,actor:'owner',before:old,after:next});return next;
  }
+ // Archived memories stay approved but are only recalled when the chat clearly touches them (rankMemories); the owner can
+ // archive or bring back any memory.
+ archiveMemory(id,archived,version){const old=this.get(id);if(old?.kind!=='memory'||old.status!=='approved')throw new Error('只有已通过的记忆可以归档');if(typeof archived!=='boolean')throw new Error('归档状态无效');
+  const next=this.update(id,{archived},version);this.create('revision',{targetId:id,actor:'owner',before:old,after:next});return next;}
  proposeMemoryChange(input,actor='memory-agent'){
   const target=this.get(input.targetId);
   if(target?.kind!=='memory'||target.status!=='approved'||protectedMemory(target))throw new Error('目标记忆不存在、未通过或受人工保护');

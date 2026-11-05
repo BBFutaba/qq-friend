@@ -1,13 +1,14 @@
 const categories={fact:'成员事实',event:'群事件',impression:'人格印象',topic:'短期话题'};
-const statuses={pending:'待审核',approved:'已通过',expired:'已过期',rejected:'已拒绝'};
-const order={pending:0,approved:1,expired:2,rejected:3};
+const statuses={pending:'待审核',approved:'已通过',archived:'已归档',expired:'已过期',rejected:'已拒绝'};
+const order={pending:0,approved:1,archived:2,expired:3,rejected:4};
 export const category=m=>m.category||(m.scope==='persona'?'impression':m.userId?'fact':'event');
 export const protectedMemory=m=>m.protected??m.actor==='owner';
 // Same rule as src/memory-policy.js: person facts learned in a group follow the QQ account into every group.
 export const crossGroup=m=>!!m.userId&&category(m)!=='topic'&&m.scope!=='private'&&!String(m.groupId).startsWith('private:');
 // People are named by their QQ nickname (the same everywhere); the group card is shown beside it.
 const label=p=>p.nickname||p.name;
-export const memoryStatus=m=>m.status==='approved'&&m.expiresAt&&m.expiresAt<=Date.now()?'expired':m.status;
+// Archived memories are approved ones the model only gets when the chat clearly touches them.
+export const memoryStatus=m=>m.status==='approved'&&m.expiresAt&&m.expiresAt<=Date.now()?'expired':m.status==='approved'&&m.archived?'archived':m.status;
 export function localDate(value){if(!value)return '';const d=new Date(value);return new Date(value-d.getTimezoneOffset()*60000).toISOString().slice(0,16);}
 // ui: {groupId, member:'' | '@group' | member record id, status, category, editing, picked:Set}
 export function memoryPage(state,ui,{esc,time,pill,empty}){
@@ -16,7 +17,7 @@ export function memoryPage(state,ui,{esc,time,pill,empty}){
  const selected=members.find(m=>m.id===ui.member),groupOnly=ui.member==='@group',inView=m=>selected?m.userId===selected.userId:groupOnly?!m.userId:true;
  const counts=new Map(),bump=(k,pending)=>{const n=counts.get(k)||{total:0,pending:0};if(pending)n.pending++;else n.total++;counts.set(k,n);};
  for(const m of all){bump(m.userId||'@group');if(m.status==='pending')bump(m.userId||'@group',true);}for(const m of pendingChanges)bump(m.userId||'@group',true);
- const changes=pendingChanges.filter(inView),scoped=all.filter(inView),tally={all:scoped.length,pending:0,approved:0,expired:0,rejected:0};for(const m of scoped)tally[memoryStatus(m)]++;
+ const changes=pendingChanges.filter(inView),scoped=all.filter(inView),tally={all:scoped.length,pending:0,approved:0,archived:0,expired:0,rejected:0};for(const m of scoped)tally[memoryStatus(m)]++;
  const list=scoped.filter(m=>(ui.status==='all'||memoryStatus(m)===ui.status)&&(ui.category==='all'||category(m)===ui.category)).sort((a,b)=>order[memoryStatus(a)]-order[memoryStatus(b)]||b.updated-a.updated);
  const pendingShown=list.filter(m=>m.status==='pending');
  const scope=m=>m.scope==='persona'?`${c.personas[m.persona]?.name||m.persona} 专有`:m.scope==='private'?'私人兴趣':'共享';
@@ -35,7 +36,7 @@ export function memoryPage(state,ui,{esc,time,pill,empty}){
  const card=m=>{const st=memoryStatus(m),editing=ui.editing===m.id,id=esc(m.id);return `<article class="memory-card ${st}" data-card="${id}" ${editing?`data-dirty-key="card:${id}"`:''}><div class="card-head">${m.status==='pending'&&!editing?`<input type="checkbox" class="pick" data-pick="${id}" data-nodirty ${ui.picked.has(m.id)?'checked':''} aria-label="选择这条记忆">`:''}${who(m)}${m.groupId!==groupId?pill(`来自 ${groupName(m.groupId)}`,'soft'):''}${pill(statuses[st],st==='pending'?true:st==='approved'?false:'mute')}${pill(categories[category(m)],'soft')}${pill(scope(m),'soft')}${m.debug?pill('调试分支',true):''}${protectedMemory(m)?pill('人工保护','soft'):''}${m.key?`<code class="key" title="稳定事实键">${esc(m.key)}</code>`:''}<span class="time grow">${m.expiresAt&&st!=='expired'?`有效至 ${time(m.expiresAt)} · `:''}${time(m.updated)}</span></div>
   ${editing?`<div class="editor"><textarea data-memory-text="${id}" aria-label="记忆内容">${esc(m.content)}</textarea><div class="fields three"><div><label>类型</label>${types(`data-memory-category="${id}"`,category(m))}</div><div><label>稳定事实键（可空）</label><input data-memory-key="${id}" value="${esc(m.key||'')}"></div><div><label>有效至（留空长期有效）</label><input type="datetime-local" data-memory-expires="${id}" value="${localDate(m.expiresAt)}"></div></div><label class="check"><input type="checkbox" data-memory-protected="${id}" ${protectedMemory(m)?'checked':''}>人工保护：禁止 agent 建议修改（修改内容后自动开启）</label></div>`:`<p class="memory-text">${esc(m.content)}</p>`}
   <div class="card-foot">${sources(m)}<div class="row actions">${editing?`<button class="small primary" data-memory-save="${id}" data-status="approved">保存并通过</button>${m.status!=='approved'?`<button class="small" data-memory-save="${id}" data-status="${esc(m.status)}">仅保存</button>`:''}<button class="small" data-memory-cancel>取消</button>`
-   :`${st==='pending'||st==='rejected'?`<button class="small primary" data-memory-status="${id}" data-status="approved">通过</button>`:''}${st!=='rejected'?`<button class="small" data-memory-status="${id}" data-status="rejected">拒绝</button>`:''}<button class="small" data-memory-edit="${id}">编辑</button><button class="link" data-history="${id}">历史</button><button class="link danger-link" data-memory-delete="${id}">删除</button>`}</div></div></article>`;};
+   :`${st==='pending'||st==='rejected'?`<button class="small primary" data-memory-status="${id}" data-status="approved">通过</button>`:''}${st!=='rejected'?`<button class="small" data-memory-status="${id}" data-status="rejected">拒绝</button>`:''}${st==='approved'||st==='archived'?`<button class="small" data-memory-archive="${id}" data-archived="${st==='approved'}">${st==='approved'?'归档':'取消归档'}</button>`:''}<button class="small" data-memory-edit="${id}">编辑</button><button class="link" data-history="${id}">历史</button><button class="link danger-link" data-memory-delete="${id}">删除</button>`}</div></div></article>`;};
  const change=m=>{const target=state.memories.find(t=>t.id===m.targetId),stale=!target||target.version!==m.targetVersion||protectedMemory(target);return `<article class="memory-card change"><div class="card-head">${who(m)}${pill(m.action==='expire'?'建议过期':'建议更新',true)}${pill(scope(m),'soft')}${m.debug?pill('调试分支',true):''}${stale?pill('原文已改变或受保护','red'):''}<span class="time grow">${time(m.updated)}</span></div>
   <div class="diff"><div><span class="eyebrow">原记忆</span><p>${esc(m.beforeContent)}</p></div><div class="after"><span class="eyebrow">${m.action==='expire'?'将停止调用':'建议改为'}</span><p>${esc(m.content)}</p></div></div>${m.reason?`<p class="muted">理由：${esc(m.reason)} · 目标版本 ${m.targetVersion}</p>`:''}
   <div class="card-foot">${sources(m)}<div class="row actions"><button class="small primary" data-change-review="${esc(m.id)}" data-allow="true" ${stale?'disabled title="原记忆已改变，需要重新整理"':''}>批准变更</button><button class="small" data-change-review="${esc(m.id)}" data-allow="false">拒绝</button><button class="link" data-history="${esc(m.targetId)}">原记忆历史</button></div></div></article>`;};

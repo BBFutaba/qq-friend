@@ -1,5 +1,5 @@
 // Model-facing chat view, after qq-bridge's qq-model-view: short refs instead of record ids, minutes ago instead of
-// timestamps, nothing empty, long texts kept as head + tail, media as placeholders or their saved reading.
+// timestamps (the observer's view only: with ago false, for everything that writes messages, there is no time at all), nothing empty, long texts kept as head + tail, media as placeholders or their saved reading.
 export const CHAT_COLUMNS = ['ref', 'who', 'ago', 'text', 're'];
 const PLACEHOLDER = { image: '[图片]', video: '[视频]', record: '[语音]' }, LINK_SITES = { bilibili: 'B站', x: 'X', youtube: 'YouTube' };
 export function messageText(m, { botId = '', limit = 200, tail = 120 } = {}) {
@@ -20,14 +20,14 @@ export function messageText(m, { botId = '', limit = 200, tail = 120 } = {}) {
 }
 // The newest `recent` messages keep up to recentLimit chars; older ones are clipped harder. A long-lived session numbers
 // on from `start` and resolves replies through the refs it already sent (`known`: external id → ref).
-export function chatView(messages, { now = Date.now(), botId = '', recent = 6, limit = 200, recentLimit = 800, tail = 120, prefix = 'm', start = 0, known = null } = {}) {
+export function chatView(messages, { now = Date.now(), botId = '', recent = 6, limit = 200, recentLimit = 800, tail = 120, prefix = 'm', start = 0, known = null, ago = true } = {}) {
   const refs = new Map(), byExternal = new Map(known || []), ref = i => `${prefix}${start + i + 1}`;
   messages.forEach((m, i) => { refs.set(ref(i), m); if (m.externalId) byExternal.set(String(m.externalId), ref(i)); });
   const rows = messages.map((m, i) => {
     const full = i >= messages.length - recent;
-    return [ref(i), m.direction === 'out' ? '你' : String(m.name || m.userId || '?').slice(0, 24) + (m.bot ? '（机器人）' : ''), Math.max(0, Math.round((now - m.at) / 60000)), messageText(m, { botId, limit: full ? recentLimit : limit, tail }), m.replyId ? byExternal.get(String(m.replyId)) || '更早' : ''];
+    return [ref(i), m.direction === 'out' ? '你' : String(m.name || m.userId || '?').slice(0, 24) + (m.bot ? '（机器人）' : ''), ...(ago ? [Math.max(0, Math.round((now - m.at) / 60000))] : []), messageText(m, { botId, limit: full ? recentLimit : limit, tail }), m.replyId ? byExternal.get(String(m.replyId)) || '更早' : ''];
   });
-  return { table: { columns: CHAT_COLUMNS, rows }, refs, refOf: id => [...refs].find(([, m]) => m.id === id)?.[0] };
+  return { table: { columns: ago ? CHAT_COLUMNS : CHAT_COLUMNS.filter(c => c !== 'ago'), rows }, refs, refOf: id => [...refs].find(([, m]) => m.id === id)?.[0] };
 }
 // Refs the model returned, mapped back to messages; record ids are accepted too.
 export function resolveRefs(view, picked) {

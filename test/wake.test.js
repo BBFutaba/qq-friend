@@ -68,13 +68,16 @@ test('chatter is judged at most once per gap and per hourly cap; the rest is def
  x.e.observerTimes.set(GROUP,[Date.now()-61000]);await x.round();assert.equal(x.observers().length,2,'after the gap');
  x.e.observerTimes.set(GROUP,[Date.now()-3000000,Date.now()-2000000,Date.now()-1000000]);x.say('三');await x.round();assert.equal(x.observers().length,2,'hourly cap reached');
  const wait=x.e.observerWait(GROUP,x.s.config().wake);assert.ok(wait>590000&&wait<=600000,'the oldest of the three frees a slot in ~10 minutes');assert.equal(x.stats().judged,2);});
-test('the observer sees unread chatter plus four earlier messages, a persona brief, and refs that map back',async t=>{
- let pick=[];const x=setup(t,{wake:{observerMinGapSeconds:0},decision:p=>({decision:pick.length?'respond':'ignore',contextIds:pick})});
+test('the observer sees unread chatter plus four earlier messages and a persona brief; its focus ref maps back and the reply gets the last 15 messages',async t=>{
+ let pick='';const x=setup(t,{wake:{observerMinGapSeconds:0},decision:p=>({decision:pick?'respond':'ignore',focus:pick})});
  const first=Array.from({length:30},(_,i)=>x.say(`消息${i+1}`));await x.round();
  let obs=x.observers().at(-1).prompt;assert.equal(obs.data.messages.rows.length,16);assert.equal(obs.data.persona,'完整人格：'+'设'.repeat(295));assert.ok(!JSON.stringify(obs.data).includes(first[0].id),'no record ids are sent');
- x.say('新的一');x.say('新的二');x.say('新的三');pick=['m2'];await x.round();obs=x.observers().at(-1).prompt;
+ x.say('新的一');x.say('新的二');x.say('新的三');pick='m2';await x.round();obs=x.observers().at(-1).prompt;
  assert.deepEqual(obs.data.messages.rows.map(r=>r[3]),['消息27','消息28','消息29','消息30','新的一','新的二','新的三']);
- const reply=x.replies().at(-1).prompt;assert.deepEqual(reply.data.context.rows.map(r=>r[3]),['消息28','新的三']);assert.equal(Object.values(reply.refs).length,2);
+ let reply=x.replies().at(-1).prompt;const text=r=>r[reply.data.context.columns.indexOf('text')],focused=()=>text(reply.data.context.rows.find(r=>r[0]===reply.data.focus));
+ assert.equal(reply.data.context.rows.length,15,'the last replyMessages of the chat, not just what the observer saw');assert.deepEqual(reply.data.context.columns,['ref','who','ago','text','re']);assert.equal(Object.values(reply.refs).length,15);
+ assert.equal(focused(),'消息28');assert.equal(x.queued.at(-1).quote,first[27].externalId,'an earlier focus is quoted');
+ x.say('新的四');pick='m99';await x.round();reply=x.replies().at(-1).prompt;assert.equal(focused(),'新的四','an unknown ref falls back to the newest');assert.equal(x.queued.at(-1).quote,undefined);
  const brief=setup(t,{persona:{brief:'嘴毒但心软的群友'}});brief.say('哈');await brief.round();assert.equal(brief.observers()[0].prompt.data.persona,'嘴毒但心软的群友');});
 test('batch windows: @ waits debounceMs, chatter batchMs, unfinished chatter unfinishedMs',t=>{
  const x=setup(t,{wake:{batchMs:8000,unfinishedMs:15000}}),c=()=>x.s.config();x.say('好的。');assert.equal(x.e.wakeDelay(GROUP,c()),8000);

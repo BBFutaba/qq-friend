@@ -26,16 +26,17 @@ function setup(t,{decision=()=>({decision:'ignore'}),wake={}}={}){
  return Object.assign(x,{s,e,calls,turns,live,dropped,say,round,replies:()=>calls.filter(c=>c.role==='reply')});}
 
 test('a DeepSeek observer session sends the snapshot once, then only what is new, with refs that keep counting',async t=>{
- let pick=[];const x=setup(t,{decision:p=>({decision:pick.length?'respond':'ignore',contextIds:pick})});
+ let pick='';const x=setup(t,{decision:p=>({decision:pick?'respond':'ignore',focus:pick})});const sent=[];x.e.enqueue=row=>{sent.push(row);return row;};
  for(let i=1;i<=20;i++)x.say(`消息${i}`);await x.round();
  const first=x.turns[0].prompt;assert.equal(first.fresh,true);assert.match(first.system,/持续的观察会话/);assert.equal(first.data.messages.rows.length,16);
  assert.deepEqual([first.data.messages.rows[0][0],first.data.messages.rows[0][3]],['m1','消息5']);assert.equal(first.data.persona,'完整人格');
  assert.equal(x.calls.filter(c=>c.role==='observer').length,0,'the stateless observer is not called');
- x.say('新的一');const target=x.say('新的二');x.say('新的三',{replyId:target.externalId});pick=['m3','m18'];await x.round();
+ x.say('新的一');const target=x.say('新的二');x.say('新的三',{replyId:target.externalId});pick='m3';await x.round();
  const second=x.turns[1].prompt;assert.equal(second.fresh,false);assert.ok(!('persona' in second.data),'the brief is not repeated');assert.doesNotMatch(second.system,/扮演|判断是否自然参与/);
  assert.deepEqual(second.data.messages.rows.map(r=>[r[0],r[3],r[4]]),[['m17','新的一',''],['m18','新的二',''],['m19','新的三','m18']]);assert.equal(second.data.latest,'m19');
- const reply=x.replies().at(-1).prompt;assert.deepEqual(reply.data.context.rows.map(r=>r[3]),['消息7','新的二','新的三'],'a ref from an earlier turn still resolves');
- x.say('再来一句');pick=[];await x.round();assert.deepEqual(x.turns[2].prompt.data.messages.rows.map(r=>r[0]),['m20']);assert.equal(x.turns.length,3);});
+ const reply=x.replies().at(-1).prompt,text=r=>r[reply.data.context.columns.indexOf('text')];assert.equal(reply.data.context.rows.length,16,'the last 15 messages, plus the focus from before them');
+ assert.equal(text(reply.data.context.rows.find(r=>r[0]===reply.data.focus)),'消息7','a focus ref from an earlier turn still resolves');assert.equal(sent.at(-1).quote,x.s.list('message',m=>m.text==='消息7',1)[0].externalId);
+ x.say('再来一句');pick='';await x.round();assert.deepEqual(x.turns[2].prompt.data.messages.rows.map(r=>r[0]),['m20']);assert.equal(x.turns.length,3);});
 
 test('memories are sent once and again only when they change',async t=>{
  const x=setup(t);const mem=x.s.create('memory',{groupId:GROUP,userId:'10000009',scope:'shared',content:'小明喜欢塔防游戏',status:'approved',debug:x.s.config().debug});

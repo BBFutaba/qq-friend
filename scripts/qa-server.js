@@ -18,6 +18,14 @@ store.memory({groupId,userId:'',content:'正在讨论周末电影（合成）',c
 const privateId=`private:${userId}`;store.create('member',{groupId:privateId,userId,name:'测试群友',nickname:'测试群友（合成）',profile:'',notes:''},`member:${privateId}:${userId}`);
 const privateSource=store.create('message',{groupId:privateId,userId,name:'测试群友',text:'最近搬到杭州了（合成）',at:Date.now(),direction:'in'});
 store.memory({groupId:privateId,userId,content:'住在杭州（合成，私聊）',sourceIds:[privateSource.id],debug:true},'memory-agent');
+// 帮手: one finished and one running task (synthetic), so the helper block's task list can be checked.
+store.create('helper-task',{groupId,persona:'gpt',request:'按人设做一份 MBTI 测试（合成）',status:'done',via:'codex',result:'INTP：爱钻牛角尖但嘴硬（合成结果）',sources:['https://example.com/mbti'],followed:'sent',owner:true,startedAt:Date.now()-600000,finishedAt:Date.now()-480000});
+store.create('helper-task',{groupId,persona:'gpt',request:'对比三家评测，总结这款耳机的缺点（合成）',status:'running',owner:false,startedAt:Date.now()-60000});
+// 记忆整理: a finished plan waiting for review (synthetic), so the review panel can be checked.
+const sortA=store.memory({groupId,userId,content:'周末喜欢看电影，尤其是科幻片（合成）',sourceIds:[source.id],debug:true},'owner'),sortB=store.memory({groupId,userId,content:'喜欢科幻电影（合成重复）',sourceIds:[source.id],debug:true},'owner');
+store.create('memory-sort',{groupId,status:'ready',total:3,done:3,startedAt:Date.now()-60000,finishedAt:Date.now(),items:[
+ {id:`${sortB.id}:0`,memoryId:sortB.id,version:sortB.version,userId,action:'merge',into:sortA.id,before:{category:'fact',key:'',content:sortB.content},after:{category:'fact',key:'',content:sortB.content},reason:'和另一条重复（合成）'},
+ {id:`${sortA.id}:1`,memoryId:sortA.id,version:sortA.version,userId,action:'update',before:{category:'fact',key:'',content:sortA.content},after:{category:'fact',key:`member:${userId}:电影`,content:'喜欢科幻电影，周末常看（合成）'},reason:'合并后精简（合成）'}]},'memory-sort:qa');
 // 梗词典: one researched entry waiting for review, one approved, one candidate still collecting flags (all synthetic).
 store.create('meme',{term:'合成梗',aliases:['合成'],status:'pending',found:true,group:false,meaning:'验收用的合成释义',origin:'合成出处',usage:'合成用法',example:'这就是合成梗',sources:[{title:'合成来源',url:'https://example.com/meme'}],confidence:'medium',nsfw:false,mentions:3,people:[userId],groupIds:[groupId],sourceIds:[source.id],firstSeen:Date.now(),lastSeen:Date.now()},'meme:qa-pending');
 store.create('meme',{term:'测试梗',aliases:[],status:'approved',found:false,group:true,meaning:'群里自己的合成梗',usage:'合成用法',sources:[],confidence:'low',nsfw:false,mentions:2,people:[userId],groupIds:[groupId],sourceIds:[],firstSeen:Date.now(),lastSeen:Date.now()},'meme:qa-approved');
@@ -33,5 +41,5 @@ const catalogs={codex:[{id:'gpt-6.1-sol',name:'GPT 6.1 Sol（合成目录）',ef
 for(const [provider,models] of Object.entries(catalogs))store.create('model-catalog',{provider,models,fetchedAt:Date.now()},`model-catalog:${provider}`);
 class Bot extends EventEmitter{constructor(){super();this.state={status:'mock',note:'隔离 UI 测试，无真实 QQ 连接'};}start(){}stop(){}async send(){throw new Error('UI 测试禁止发送');}}
 const token=randomBytes(32).toString('hex');mkdirSync(join(ROOT,'verification'),{recursive:true});writeFileSync(join(ROOT,'verification','qa-token.txt'),token);
-const app=createApp({store,persistSecrets(){},secrets:{adminToken:token,httpUrl:'',wsUrl:'',claudeSdk:'',deepseekCommand:''},onebot:new Bot(),providers:{stop(){},async catalog(provider){return provider==='claude-api'?[{id:'claude-api-fixture',name:'API 测试模型',efforts:[]}]:catalogs[provider];}}});
+const app=createApp({store,persistSecrets(){},secrets:{adminToken:token,httpUrl:'',wsUrl:'',claudeSdk:'',deepseekCommand:''},onebot:new Bot(),providers:{stop(){},async catalog(provider){return provider==='claude-api'?[{id:'claude-api-fixture',name:'API 测试模型',efforts:[]}]:provider==='openai-api'?[{id:'openai-api-fixture',name:'OpenAI API 测试模型',efforts:[]}]:catalogs[provider];}}});
 await app.start(4892);console.log('Synthetic UI test http://127.0.0.1:4892');

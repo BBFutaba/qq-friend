@@ -9,7 +9,7 @@ export function tokensFrom(value) {
     outputTokens: count(value.outputTokens ?? value.output_tokens ?? value.completion_tokens),
     totalTokens: count(value.totalTokens ?? value.total_tokens),
     cachedInputTokens: count(value.cachedInputTokens ?? value.cachedReadTokens ?? value.cacheReadTokens ?? value.cacheReadInputTokens ?? value.cache_read_input_tokens ?? value.input_tokens_details?.cached_tokens ?? value.prompt_tokens_details?.cached_tokens),
-    cacheWriteInputTokens: count(value.cacheWriteInputTokens ?? value.cachedWriteTokens ?? value.cacheWriteTokens ?? value.cacheCreationInputTokens ?? value.cache_creation_input_tokens),
+    cacheWriteInputTokens: count(value.cacheWriteInputTokens ?? value.cachedWriteTokens ?? value.cacheWriteTokens ?? value.cacheCreationInputTokens ?? value.cache_creation_input_tokens ?? value.input_tokens_details?.cache_write_tokens ?? value.prompt_tokens_details?.cache_write_tokens),
     reasoningOutputTokens: count(value.reasoningOutputTokens ?? value.output_tokens_details?.reasoning_tokens ?? value.completion_tokens_details?.reasoning_tokens),
   };
   // Anthropic's input count excludes cache reads/writes; OpenAI's includes them.

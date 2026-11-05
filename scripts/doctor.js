@@ -21,11 +21,11 @@ const codex=await catalog('codex'),claude=secrets.claudeSdk?await catalog('claud
 add('codex',codex.ok,codex.detail,'安装 Codex CLI 并用 ChatGPT 账号登录（codex login），GPT 人格与默认后台 agent 需要它',false);
 add('claude',claude.ok,claude.detail,'安装并登录 Claude Code，再运行 npm install --prefix workspace/claude-sdk @anthropic-ai/claude-agent-sdk 和 node scripts/setup.js',false);
 const deepseek=secrets.deepseekCommand?await catalog('deepseek'):{ok:false,detail:'未找到 DeepSeek Harness'};
-const claudeApi=secrets.claudeApi?.apiKey?{ok:true,detail:'已配置 API；未执行真实推理'}:{ok:false,detail:'未配置 Claude API'};
-const providerKey=p=>p.provider==='claude'&&p.transport==='api'?'claudeApi':p.provider;
+const claudeApi=secrets.claudeApi?.apiKey?{ok:true,detail:'已配置 API；未执行真实推理'}:{ok:false,detail:'未配置 Claude API'},openaiApi=secrets.openaiApi?.apiKey?{ok:true,detail:'已配置 API；未执行真实推理'}:{ok:false,detail:'未配置 OpenAI API'};
+const providerKey=p=>p.transport==='api'?(p.provider==='codex'?'openaiApi':'claudeApi'):p.provider;
 const roleProviders=[...new Set(Object.values(c.roles).map(r=>providerKey(c.roleModels[r])))];
-add('background-models',roleProviders.every(p=>({codex,claude,deepseek,claudeApi})[p]?.ok),`后台 agent 使用 ${roleProviders.join(' + ')}`,codex.ok||claude.ok||deepseek.ok?'到「人格与模型 → 后台 agent」把四个角色切换到已可用的后端并保存':'安装并登录所选的 Codex、Claude 或 DeepSeek 客户端；DeepSeek 观察员的图片预读需要 Codex');
-const enabled=c.groups.filter(g=>g.enabled),personaReady=g=>{const p=c.personas[g.persona];return !!p.prompt.trim()&&(p.provider!=='claude'||(p.transport==='api'?claudeApi:claude).ok)&&(p.provider!=='codex'||codex.ok)&&(p.provider!=='deepseek'||deepseek.ok);};
+add('background-models',roleProviders.every(p=>({codex,claude,deepseek,claudeApi,openaiApi})[p]?.ok),`后台 agent 使用 ${roleProviders.join(' + ')}`,codex.ok||claude.ok||deepseek.ok?'到「人格与模型 → 后台 agent」把四个角色切换到已可用的后端并保存':'安装并登录所选的 Codex、Claude 或 DeepSeek 客户端；DeepSeek 观察员的图片预读需要 Codex');
+const enabled=c.groups.filter(g=>g.enabled),personaReady=g=>{const p=c.personas[g.persona];return !!p.prompt.trim()&&(p.provider!=='claude'||(p.transport==='api'?claudeApi:claude).ok)&&(p.provider!=='codex'||(p.transport==='api'?openaiApi:codex).ok)&&(p.provider!=='deepseek'||deepseek.ok);};
 add('personas',enabled.length>0&&enabled.every(personaReady),enabled.map(g=>`${g.name}→${c.personas[g.persona].name}${c.personas[g.persona].prompt.trim()?'':'（设定为空）'}`).join('；')||'没有启用的群','到「人格与模型」为启用群使用的人格填写设定，并确认该人格的后端可用');
 add('deepseek',deepseek.ok,deepseek.detail,'安装 DeepSeek Harness 或设置 DEEPSEEK_HARNESS_CMD 后运行 node scripts/setup.js',false);
 add('media',mediaReady(),mediaReady()?'图片 / 语音 / 视频解码已就绪':'未安装（不影响文字聊天）','node scripts/setup.js --media',false);

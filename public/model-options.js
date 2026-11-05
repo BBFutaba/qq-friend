@@ -4,7 +4,7 @@ export const backgroundRoles = {observer:'观察群聊',perception:'画面识别
 export const seeingRoles = new Set(['perception']);
 export const providerNames = {codex:'GPT / Codex',claude:'Claude',deepseek:'DeepSeek'};
 export function backgroundSpecs(config){return Object.fromEntries(Object.keys(backgroundRoles).map(role=>[role,{...config.roleModels[config.roles[role]]}]));}
-export function saveBackgroundSpecs(config,specs){for(const role of Object.keys(backgroundRoles)){const {provider,model,effort,transport,apiPreset}=specs[role],key=`role:${role}`;config.roles[role]=key;config.roleModels[key]={provider,model,effort,...(provider==='claude'?{transport:transport||'native',apiPreset:apiPreset||'default'}:{})};}return config;}
+export function saveBackgroundSpecs(config,specs){for(const role of Object.keys(backgroundRoles)){const {provider,model,effort,transport,apiPreset}=specs[role],key=`role:${role}`;config.roles[role]=key;config.roleModels[key]={provider,model,effort,...(provider==='claude'||transport==='api'?{transport:transport||'native',apiPreset:apiPreset||'default'}:{})};}return config;}
 export function modelOptions(catalog, currentModel, currentEffort) {
   if (!catalog) return {
     models: [{ id: currentModel, name: `${currentModel || '本地默认模型'}（待检测）` }],

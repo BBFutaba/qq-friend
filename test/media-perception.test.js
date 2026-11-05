@@ -15,7 +15,7 @@ function setup(t,{ready=true,media={},persona='gpt',perception=async()=>({descri
  let at=Date.now()-10000;const message=(text,extra={})=>s.create('message',{groupId,userId,name:'小明',text,media:[],at:at+=100,direction:'in',...extra});
  const image=(type='image')=>message(` [${type}] `,{media:[{type,file:'a',url:'https://gchat.qpic.cn/a?rkey=secret-rkey'}]});
  // Reads a message back out of the compact chat table via the prompt's ref map: its saved reading and unread placeholders.
- const seen=(role,id)=>{const prompt=x.calls.filter(c=>c.role===role).at(-1).prompt,table=prompt.data[role==='observer'?'messages':'context'],ref=Object.entries(prompt.refs).find(([,v])=>v===id)?.[0],row=table.rows.find(r=>r[0]===ref);if(!row)return undefined;const text=row[3];return {text,mediaSummary:text.match(/〔画面：(.*)〕/)?.[1],media:[...text.matchAll(/\[(图片|视频)\]/g)].map(m=>({type:m[1]==='图片'?'image':'video'}))};};
+ const seen=(role,id)=>{const prompt=x.calls.filter(c=>c.role===role).at(-1).prompt,table=prompt.data[role==='observer'?'messages':'context'],ref=Object.entries(prompt.refs).find(([,v])=>v===id)?.[0],row=table.rows.find(r=>r[0]===ref);if(!row)return undefined;const text=row[table.columns.indexOf('text')];return {text,mediaSummary:text.match(/〔画面：(.*)〕/)?.[1],media:[...text.matchAll(/\[(图片|视频)\]/g)].map(m=>({type:m[1]==='图片'?'image':'video'}))};};
  const x={s,e,p,calls,reads,queued,message,image,seen,perceptions:()=>calls.filter(c=>c.role==='perception')};return x;
 }
 const notices=x=>x.s.list('log',l=>l.type==='notice'&&l.message.includes('保留占位'));

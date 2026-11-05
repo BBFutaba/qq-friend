@@ -69,7 +69,7 @@ node scripts/setup.js
 
 ## 4. 准备至少一个模型后端
 
-本地模式直接使用电脑上已登录的模型客户端，并忽略环境变量里的 API Key。也可在后台「Claude API」中填写专用 API 地址和密钥，再将所需 Claude 人格或后台角色切为 API；参见 [README 的 API 说明](README.md#claude-api-与提示词编排)。未选择 API 时，至少需要下面 A 或 B 中的一个。
+本地模式直接使用电脑上已登录的模型客户端，并忽略环境变量里的 API Key。也可在后台「API 与提示词」中填写专用 API 地址和密钥（Claude 和 OpenAI 各有一条连接），再将所需 Claude、GPT 人格或后台角色切为 API；参见 [README 的 API 说明](README.md#claude-api-与提示词编排)。未选择 API 时，至少需要下面 A 或 B 中的一个。
 
 ### A. GPT：Codex CLI（推荐，默认的后台 agent 用它）
 

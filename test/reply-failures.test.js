@@ -30,7 +30,19 @@ test('an empty turn is retried once without tools, with a line that allows decli
  const twice = await run([{ stop_reason: 'end_turn', content: [{ type: 'thinking', thinking: '' }] }]);
  assert.equal(twice.bodies.length, 2, 'only one retry');assert.equal(twice.result.message, 'API 未返回文本（end_turn · 内容块：thinking · 第 2 轮），结果已丢弃');});
 
-test('tool calls after tools were switched off are rejected, and no reply runs more than 12 rounds', async () => {
- const off = await run([use('web_search', { query: 'a' }), use('web_search', { query: 'b' }, 'u2')], { audit: () => [] });
- assert.match(off.result.message, /工具已关闭仍请求 web_search/);
- const endless = await run([n => use('web_search', { query: 'q' + n }, 'u' + n)]);assert.match(endless.result.message, /工具查询轮数过多/);assert.equal(endless.bodies.length, 12);});
+test('a tool call after the tools were closed gets one error round and the answer still comes through; a second one ends it', async () => {
+ const off = await run([use('web_search', { query: 'a' }), use('web_search', { query: 'b' }, 'u2'), text('{"text":"没查到"}')], { audit: () => [] });
+ assert.equal(off.result.text, '{"text":"没查到"}');assert.deepEqual(off.audited, [['web_search']], 'a closed round skips the audit');assert.deepEqual(off.executed, []);
+ assert.match(off.bodies[2].messages.at(-1).content.find(b => b.type === 'tool_result').content, /已经关了/);
+ const stubborn = await run([use('web_search', { query: 'a' }), use('web_search', { query: 'b' }, 'u2'), use('web_search', { query: 'c' }, 'u3')], { audit: () => [] });
+ assert.match(stubborn.result.message, /工具已关闭仍请求 web_search/);});
+
+test('after 12 tool rounds the tools close and the model answers from what it found; an endless caller still ends', async () => {
+ const wrapped = await run([n => n <= 12 ? use('web_search', { query: 'q' + n }, 'u' + n) : text('{"text":"就查到这些"}')]);
+ assert.equal(wrapped.result.text, '{"text":"就查到这些"}');assert.equal(wrapped.bodies.length, 13);assert.deepEqual(wrapped.bodies[12].tool_choice, { type: 'none' });assert.match(JSON.stringify(wrapped.bodies[12].messages.at(-1)), /查询到此为止/);
+ const endless = await run([n => use('web_search', { query: 'q' + n }, 'u' + n)]);assert.match(endless.result.message, /工具已关闭仍请求 web_search/);assert.equal(endless.bodies.length, 14);});
+
+test('a failed lookup tells the model why, and the log keeps the reason and host', async () => {
+ const r = await run([use('web_read', { url: 'https://news.example.com/a' }), text('{"text":"打不开"}')], { execute: async () => { throw Error('网页返回 HTTP 403'); } });
+ assert.match(r.bodies[1].messages.at(-1).content.find(b => b.type === 'tool_result').content, /查询失败（网页返回 HTTP 403）/);
+ assert.deepEqual(r.result.tools, [{ name: 'web_read', status: 'failed', reason: '网页返回 HTTP 403', host: 'news.example.com' }]);});

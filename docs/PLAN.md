@@ -34,7 +34,7 @@
 - Browser extension needs the user to load/pair it in the existing Chrome profile. It reads rendered content in authorized Bilibili/X tabs; it does not claim a complete account export.
 - Unknown delivery is never automatically retried. New topics expire and need a new approval after content/persona/config changes.
 
-- Claude additionally supports explicit per-role API transport (Anthropic Messages / OpenAI-compatible Chat Completions), separate model catalog, local secret storage and owner-editable prompt presets. Offline synthetic request previews never invoke models; final expanded text obeys the existing input budget. Native remains the default.
+- Claude and GPT additionally support explicit per-role API transport (Anthropic Messages / OpenAI-compatible Chat Completions for Claude, OpenAI Responses for GPT), separate model catalogs, local secret storage and owner-editable prompt presets. Offline synthetic request previews never invoke models; final expanded text obeys the existing input budget. Native remains the default.
 
 - Explicitly enabled Claude API chat queries support web_search and web_read for reply/preview only; bounded tool loop, SSRF-safe public HTTPS fetch, cancellation and model-round accounting. Observer classifies public chat queries as eligible conversation. No arbitrary command/file/configuration or QQ-sending tools.
 

@@ -15,10 +15,10 @@ function setup(t, random) {
  const reply = async () => { e.lastReply.clear();await e.respond(GROUP);return calls.filter(x => x.role === 'reply').at(-1).prompt; };
  return { say, reply };}
 
-test('each reply carries the group clock and a drawn length lean; a direct question gets room', async t => {
+test('each reply carries a drawn length lean and minutes ago but no clock; a direct question gets room', async t => {
  const x = setup(t, () => 0);
  x.say('笑死', { mentioned: true });const react = await x.reply();
- assert.equal(react.data.pace, PACES.react);assert.match(react.data.now, /^\d{1,2}月\d{1,2}日 周[一二三四五六日] \d\d:\d\d$/);
+ assert.equal(react.data.pace, PACES.react);assert.equal(react.data.now, undefined);assert.deepEqual(react.data.context.columns, ['ref', 'who', 'ago', 'text', 're']);assert.doesNotMatch(react.system, /\bnow\b|本地时间/);
  x.say('你觉得这本书哪里写得好？', { mentioned: true });const asked = await x.reply();assert.equal(asked.data.pace, PACES.full);
  assert.ok(react.system.includes(PACE_NOTE));assert.equal(asked.system, react.system, 'the instructions stay byte-identical across paces (prompt caching)');
  assert.ok(!/pace|now/.test(JSON.stringify(Object.keys(react).filter(k => k !== 'data'))), 'only data carries the per-reply fields');});

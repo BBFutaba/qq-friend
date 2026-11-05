@@ -1,8 +1,10 @@
+// The owner's claude.ai connectors (Gmail, GitHub, Drive…) would otherwise load into every session: ~60k tokens of tool
+// definitions per call, and tools no QQ session should see. strictMcpConfig and disableClaudeAiConnectors keep them out.
 import { pathToFileURL } from 'node:url';
 let raw='';for await(const chunk of process.stdin)raw+=chunk;
 try{
  const input=JSON.parse(raw);const {query}=await import(pathToFileURL(input.sdk).href);
- const options={cwd:process.cwd(),tools:[],mcpServers:{},settingSources:[],plugins:[],skills:[],permissionMode:'dontAsk',persistSession:false,maxTurns:1,canUseTool:async()=>({behavior:'deny',message:'No tools in QQ text sessions'}),env:{...process.env,ANTHROPIC_API_KEY:undefined,ANTHROPIC_AUTH_TOKEN:undefined}};
+ const options={cwd:process.cwd(),tools:[],mcpServers:{},settingSources:[],plugins:[],skills:[],strictMcpConfig:true,settings:{disableClaudeAiConnectors:true},permissionMode:'dontAsk',persistSession:false,maxTurns:1,canUseTool:async()=>({behavior:'deny',message:'No tools in QQ text sessions'}),env:{...process.env,ANTHROPIC_API_KEY:undefined,ANTHROPIC_AUTH_TOKEN:undefined}};
  if(input.spec){options.model=input.spec.model;if(input.spec.effort)options.effort=input.spec.effort;options.systemPrompt=input.prompt.system;}
  let unlock;const gate=new Promise(resolve=>{unlock=resolve;});
  async function* messages(){await gate;if(input.catalog)return;yield {type:'user',message:{role:'user',content:[{type:'text',text:JSON.stringify(input.prompt?.data||{})},...(input.images||[]).map(url=>{const m=url.match(/^data:([^;]+);base64,(.*)$/s);return {type:'image',source:{type:'base64',media_type:m[1],data:m[2]}};})]}};}
