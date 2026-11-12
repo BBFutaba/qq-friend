@@ -28,7 +28,8 @@ export const DEFAULTS = {
   output: { splitOn: '，。！？；,.!?;\n', stripEnd: '，。；,.;;', maxParts: 5, maxPartChars: 220, delayMs: 1600 },
   proactive: { enabled: false, intervalMinutes: 120, maxDaily: 3, approvalMinutes: 60, quietStart: 23, quietEnd: 8, timezone: localZone() },
   // forwards: read merged chat records; nsfwReply: the canned answer to one that hits the NSFW list ('' = stay silent).
-  media: { images: true, audio: true, video: true, forwards: true, links: true, nsfwReply: '不爱看这种', nsfwWords: [] },
+  // replyImages: the reply model also gets up to replyImageCount pictures themselves, next to their saved readings.
+  media: { images: true, audio: true, video: true, forwards: true, links: true, replyImages: false, replyImageCount: 3, nsfwReply: '不爱看这种', nsfwWords: [] },
   // 梗词典: research a flagged term after minMentions flags (or two people), at most researchDaily Wander researches a day.
   memes: { enabled: true, minMentions: 2, researchDaily: 10 },
   // 帮手: a Claude Agent SDK session with web tools that does the many-step work a reply hands over (see helper.js).
@@ -55,9 +56,9 @@ export function assertConfig(c) {
   if(['observer','memory','auditor','discovery','perception'].some(k=>!c.roleModels[c.roles[k]]))throw new Error('后台角色缺失');
   if(c.roleModels[c.roles.perception].provider==='deepseek')throw new Error('画面识别需要能看图的模型（GPT / Codex 或 Claude），DeepSeek 只能读文字');
   for(const p of Object.values(c.roleModels)) if(!p||!['codex','claude','deepseek'].includes(p.provider)||typeof p.model!=='string'||typeof p.effort!=='string')throw new Error('后台模型配置无效');
-  const bounds = [[c.participation.debounceMs,500,30000],[c.participation.cooldownSeconds,0,3600],[c.participation.maxContextChars,2000,50000],[c.participation.maxContextMessages,5,150],[c.participation.replyMessages,5,150],[c.participation.maxReplyAgeSeconds,10,600],[c.participation.dailyCalls===-1?1:c.participation.dailyCalls,1,10000],[c.participation.hourlyReplies,1,100],[c.output.maxParts,1,10],[c.output.maxPartChars,20,1000],[c.output.delayMs,0,10000],[c.proactive.intervalMinutes,15,1440],[c.proactive.maxDaily,1,30],[c.proactive.approvalMinutes,1,1440],[c.proactive.quietStart,0,23],[c.proactive.quietEnd,0,23],[c.browser.maxItems,1,50]];
+  const bounds = [[c.participation.debounceMs,500,30000],[c.participation.cooldownSeconds,0,3600],[c.participation.maxContextChars,2000,50000],[c.participation.maxContextMessages,5,150],[c.participation.replyMessages,5,150],[c.participation.maxReplyAgeSeconds,10,600],[c.participation.dailyCalls===-1?1:c.participation.dailyCalls,1,10000],[c.participation.hourlyReplies,1,100],[c.output.maxParts,1,10],[c.output.maxPartChars,20,1000],[c.output.delayMs,0,10000],[c.proactive.intervalMinutes,15,1440],[c.proactive.maxDaily,1,30],[c.proactive.approvalMinutes,1,1440],[c.proactive.quietStart,0,23],[c.proactive.quietEnd,0,23],[c.browser.maxItems,1,50],[c.media.replyImageCount??3,1,6]];
   if(bounds.some(([v,a,b])=>!Number.isInteger(v)||v<a||v>b))throw new Error('频率、预算或输出长度超出允许范围');
-  for(const v of [c.paused,c.debug,c.proactive.enabled,c.browser.enabled,c.media.images,c.media.audio,c.media.video,c.media.forwards??true,c.media.links??true,...c.groups.map(g=>g.enabled)]) if(typeof v!=='boolean')throw new Error('开关必须为布尔值');
+  for(const v of [c.paused,c.debug,c.proactive.enabled,c.browser.enabled,c.media.images,c.media.audio,c.media.video,c.media.forwards??true,c.media.links??true,c.media.replyImages??false,...c.groups.map(g=>g.enabled)]) if(typeof v!=='boolean')throw new Error('开关必须为布尔值');
   const memes={...DEFAULTS.memes,...c.memes};if(typeof memes.enabled!=='boolean'||!Number.isInteger(memes.minMentions)||memes.minMentions<1||memes.minMentions>10||!Number.isInteger(memes.researchDaily)||memes.researchDaily<0||memes.researchDaily>100)throw new Error('梗词典设置无效');
   const nsfw={...DEFAULTS.media,...c.media};if(typeof nsfw.nsfwReply!=='string'||nsfw.nsfwReply.length>40||/[\r\n]/.test(nsfw.nsfwReply)||!Array.isArray(nsfw.nsfwWords)||nsfw.nsfwWords.length>100||nsfw.nsfwWords.some(w=>typeof w!=='string'||!w.trim()||w.length>20))throw new Error('不适内容设置无效：回复最多 40 字，屏蔽词最多 100 个、每个 1–20 字');
   if(typeof c.output.splitOn!=='string'||typeof c.output.stripEnd!=='string'||c.output.splitOn.length>50||c.output.stripEnd.length>50)throw new Error('标点设置无效');
